@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,9 +18,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { mockClients } from '@/data/mockData';
+import { mockClients as initialMockClients } from '@/data/mockData';
 import { Search, Plus, MoreHorizontal, Mail, Phone, MessageCircle, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AddClientSheet } from '@/components/clients/AddClientSheet';
+import { Client } from '@/types';
+import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 
 const leadSourceColors: Record<string, string> = {
   website: 'bg-primary/10 text-primary',
@@ -32,8 +36,92 @@ const leadSourceColors: Record<string, string> = {
 
 export default function Clients() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
 
-  const filteredClients = mockClients.filter(
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
+  const fetchClients = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        const mappedClients: Client[] = data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          email: c.email || '',
+          phone: c.phone || '',
+          whatsapp: c.whatsapp || '',
+          country: c.country || '',
+          company: c.company || '',
+          leadSource: c.lead_source || 'website',
+          message: c.message || '',
+          notes: c.notes || '',
+          createdAt: new Date(c.created_at),
+          updatedAt: new Date(c.updated_at || c.created_at),
+        }));
+        setClients(mappedClients);
+      }
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+      toast.error('Failed to load clients', { description: 'Using fallback data' });
+      setClients(initialMockClients);
+    }
+  };
+
+  const handleAddClient = async (newClientData: Partial<Client>) => {
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .insert([{
+          name: newClientData.name || '',
+          email: newClientData.email || '',
+          phone: newClientData.phone || '',
+          whatsapp: newClientData.whatsapp || '',
+          country: newClientData.country || '',
+          company: newClientData.company || '',
+          lead_source: newClientData.leadSource || 'website',
+          message: newClientData.message || ''
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        const addedClient: Client = {
+          id: data.id,
+          name: data.name,
+          email: data.email || '',
+          phone: data.phone || '',
+          whatsapp: data.whatsapp || '',
+          country: data.country || '',
+          company: data.company || '',
+          leadSource: data.lead_source || 'website',
+          message: data.message || '',
+          notes: data.notes || '',
+          createdAt: new Date(data.created_at),
+          updatedAt: new Date(data.updated_at || data.created_at),
+        };
+        setClients([addedClient, ...clients]);
+        toast.success('Client added successfully!', {
+          description: `${addedClient.name} has been added to your client list.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error adding client:', error);
+      toast.error('Failed to add client');
+    }
+  };
+
+  const filteredClients = clients.filter(
     (client) =>
       client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -42,7 +130,11 @@ export default function Clients() {
 
   return (
     <div className="min-h-screen">
-      <Header title="Clients" subtitle="Manage your client relationships" />
+      <Header 
+        title="Clients" 
+        subtitle="Manage your client relationships" 
+        onAddClientClick={() => setIsAddSheetOpen(true)}
+      />
 
       <div className="p-6 space-y-6">
         {/* Actions Bar */}
@@ -62,11 +154,21 @@ export default function Clients() {
               Filters
             </Button>
           </div>
-          <Button variant="accent" className="gap-2">
+          <Button 
+            variant="accent" 
+            className="gap-2 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            onClick={() => setIsAddSheetOpen(true)}
+          >
             <Plus className="h-4 w-4" />
             Add Client
           </Button>
         </div>
+
+        <AddClientSheet 
+          open={isAddSheetOpen} 
+          onOpenChange={setIsAddSheetOpen} 
+          onAddClient={handleAddClient} 
+        />
 
         {/* Clients Table */}
         <div className="bg-card rounded-xl shadow-soft border border-border/50 overflow-hidden animate-fade-in">

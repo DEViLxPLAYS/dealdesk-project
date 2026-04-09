@@ -1,4 +1,4 @@
-import { Bell, Search, Plus } from 'lucide-react';
+import { Bell, Search, Plus, UserPlus, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -14,9 +14,11 @@ import {
 interface HeaderProps {
   title: string;
   subtitle?: string;
+  onAddClientClick?: () => void;
+  onAddDealClick?: () => void;
 }
 
-export function Header({ title, subtitle }: HeaderProps) {
+export function Header({ title, subtitle, onAddClientClick, onAddDealClick }: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 h-16 bg-background/80 backdrop-blur-md border-b border-border flex items-center justify-between px-6">
       <div>
@@ -35,10 +37,40 @@ export function Header({ title, subtitle }: HeaderProps) {
         </div>
 
         {/* Quick Add */}
-        <Button variant="accent" size="sm" className="gap-2">
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Quick Add</span>
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="accent" size="sm" className="gap-2 shadow-sm hover:scale-105 transition-transform">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline font-semibold tracking-wide">Quick Add</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl border-border/50 shadow-xl bg-background/95 backdrop-blur-xl">
+            <DropdownMenuItem 
+              className="gap-3 py-2.5 px-3 cursor-pointer rounded-lg hover:bg-primary/5 focus:bg-primary/10 transition-colors"
+              onClick={onAddClientClick}
+            >
+              <div className="p-1.5 bg-primary/10 rounded-md">
+                <UserPlus className="h-4 w-4 text-primary" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-semibold text-sm">New Client</span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Add to Roster</span>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              className="gap-3 py-2.5 px-3 cursor-pointer rounded-lg hover:bg-success/5 focus:bg-success/10 transition-colors"
+              onClick={onAddDealClick}
+            >
+              <div className="p-1.5 bg-success/10 rounded-md">
+                <Briefcase className="h-4 w-4 text-success" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-semibold text-sm">New Deal</span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Add to Pipeline</span>
+              </div>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* Notifications */}
         <DropdownMenu>

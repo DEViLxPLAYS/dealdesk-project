@@ -12,6 +12,8 @@ export interface Client {
   };
   leadSource: 'website' | 'tiktok' | 'facebook' | 'referral' | 'other';
   notes?: string;
+  whatsapp?: string;
+  message?: string;
   createdAt: Date;
   updatedAt: Date;
 }
