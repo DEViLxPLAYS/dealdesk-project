@@ -4,39 +4,47 @@ import { RevenueChart } from '@/components/dashboard/RevenueChart';
 import { LeadSourceChart } from '@/components/dashboard/LeadSourceChart';
 import { RecentActivity } from '@/components/dashboard/RecentActivity';
 import { PipelineOverview } from '@/components/dashboard/PipelineOverview';
-import { mockDashboardStats } from '@/data/mockData';
+import { useClients } from '@/hooks/useClients';
+import { useInvoices } from '@/hooks/useInvoices';
+import { useProjects } from '@/hooks/useProjects';
 import { Users, FileText, FolderKanban, DollarSign } from 'lucide-react';
 
 export default function Dashboard() {
+  const { clients, loading: clientsLoading } = useClients();
+  const { outstandingCount, thisMonthRevenue, revenueChange, loading: invLoading } = useInvoices();
+  const { activeCount, loading: projLoading } = useProjects();
+
+  const loading = clientsLoading || invLoading || projLoading;
+
   return (
     <div className="min-h-screen">
-      <Header title="Dashboard" subtitle="Welcome back! Here's your business overview." />
-      
+      <Header title="Dashboard" subtitle="Welcome back! Here's your live business overview." />
+
       <div className="p-6 space-y-6">
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
             title="Total Clients"
-            value={mockDashboardStats.totalClients}
+            value={clientsLoading ? '…' : clients.length}
             change={8.2}
             icon={Users}
             variant="primary"
           />
           <StatCard
             title="Outstanding Invoices"
-            value={mockDashboardStats.outstandingInvoices}
+            value={invLoading ? '…' : outstandingCount}
             icon={FileText}
           />
           <StatCard
             title="Active Projects"
-            value={mockDashboardStats.activeProjects}
+            value={projLoading ? '…' : activeCount}
             change={5.1}
             icon={FolderKanban}
           />
           <StatCard
             title="Monthly Revenue"
-            value={`$${mockDashboardStats.monthlyRevenue.toLocaleString()}`}
-            change={mockDashboardStats.revenueChange}
+            value={invLoading ? '…' : `$${thisMonthRevenue.toLocaleString()}`}
+            change={revenueChange}
             icon={DollarSign}
             variant="accent"
           />

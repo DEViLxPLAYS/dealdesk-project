@@ -1,148 +1,201 @@
+import { useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Plus, FolderKanban, MoreHorizontal, Calendar, Users } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Plus, FolderKanban, MoreHorizontal, Calendar,
+  Loader2, CheckCircle2, PauseCircle, TrendingUp,
+  Search, AlertCircle,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useProjects, CreateProjectInput } from '@/hooks/useProjects';
+import { useClients } from '@/hooks/useClients';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
 
-const projects = [
-  {
-    id: '1',
-    name: 'TechStartup Website Redesign',
-    client: 'TechStartup Inc',
-    status: 'active',
-    progress: 65,
-    dueDate: new Date('2024-04-15'),
-    assignedTo: ['John D.', 'Sarah M.'],
-    phases: [
-      { name: 'Discovery', status: 'completed' },
-      { name: 'Design', status: 'completed' },
-      { name: 'Development', status: 'in-progress' },
-      { name: 'Testing', status: 'pending' },
-    ],
-  },
-  {
-    id: '2',
-    name: 'Social Media Campaign Q1',
-    client: 'InnovateCo',
-    status: 'active',
-    progress: 40,
-    dueDate: new Date('2024-03-31'),
-    assignedTo: ['Emma L.'],
-    phases: [
-      { name: 'Strategy', status: 'completed' },
-      { name: 'Content Creation', status: 'in-progress' },
-      { name: 'Publishing', status: 'pending' },
-      { name: 'Analytics', status: 'pending' },
-    ],
-  },
-  {
-    id: '3',
-    name: 'Brand Identity Package',
-    client: 'Creative Media',
-    status: 'on-hold',
-    progress: 25,
-    dueDate: new Date('2024-05-01'),
-    assignedTo: ['John D.'],
-    phases: [
-      { name: 'Research', status: 'completed' },
-      { name: 'Concepts', status: 'in-progress' },
-      { name: 'Refinement', status: 'pending' },
-      { name: 'Delivery', status: 'pending' },
-    ],
-  },
-  {
-    id: '4',
-    name: 'E-commerce Integration',
-    client: 'GlobalTech Solutions',
-    status: 'completed',
-    progress: 100,
-    dueDate: new Date('2024-02-28'),
-    assignedTo: ['Sarah M.', 'Mike R.'],
-    phases: [
-      { name: 'Setup', status: 'completed' },
-      { name: 'Integration', status: 'completed' },
-      { name: 'Testing', status: 'completed' },
-      { name: 'Launch', status: 'completed' },
-    ],
-  },
-];
+// ─── Status config ──────────────────────────────────────────────────────────────
+const statusConfig = {
+  active:    { bg: 'bg-emerald-500/10', text: 'text-emerald-600', border: 'border-emerald-500/20', dot: 'bg-emerald-500', icon: TrendingUp },
+  'on-hold': { bg: 'bg-amber-500/10',   text: 'text-amber-600',   border: 'border-amber-500/20',   dot: 'bg-amber-500',   icon: PauseCircle },
+  completed: { bg: 'bg-primary/10',     text: 'text-primary',     border: 'border-primary/20',     dot: 'bg-primary',     icon: CheckCircle2 },
+} as const;
 
-const statusStyles: Record<string, { bg: string; text: string }> = {
-  active: { bg: 'bg-success/10', text: 'text-success' },
-  'on-hold': { bg: 'bg-warning/10', text: 'text-warning' },
-  completed: { bg: 'bg-primary/10', text: 'text-primary' },
-};
+const progressColor = (status: string) =>
+  status === 'active' ? 'bg-emerald-500' :
+  status === 'on-hold' ? 'bg-amber-500' : 'bg-primary';
 
-const phaseStatusColors: Record<string, string> = {
-  completed: 'bg-success',
-  'in-progress': 'bg-primary',
-  pending: 'bg-muted',
-};
+// ─── New Project modal ──────────────────────────────────────────────────────────
+interface NewProjectForm {
+  client_id: string;
+  name: string;
+  description: string;
+  status: 'active' | 'on-hold' | 'completed';
+  progress: number;
+  due_date: string;
+}
 
+const defaultForm = (): NewProjectForm => ({
+  client_id: '',
+  name: '',
+  description: '',
+  status: 'active',
+  progress: 0,
+  due_date: format(new Date(Date.now() + 30 * 86400000), 'yyyy-MM-dd'),
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 export default function Projects() {
+  const { projects, loading, activeCount, onHoldCount, completedCount, createProject, updateProject, deleteProject } = useProjects();
+  const { clients, loading: clientsLoading } = useClients();
+
+  const [search, setSearch]           = useState('');
+  const [showNew, setShowNew]         = useState(false);
+  const [form, setForm]               = useState<NewProjectForm>(defaultForm());
+  const [saving, setSaving]           = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+  const filtered = projects.filter(p => {
+    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.client_name.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === 'all' || p.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  const handleCreate = async () => {
+    if (!form.client_id) { toast.error('Please select a client'); return; }
+    if (!form.name.trim()) { toast.error('Project name is required'); return; }
+
+    setSaving(true);
+    const client = clients.find(c => c.id === form.client_id);
+    const input: CreateProjectInput = {
+      client_id: form.client_id,
+      client_name: client?.name || '',
+      name: form.name.trim(),
+      description: form.description || undefined,
+      status: form.status,
+      progress: form.progress,
+      due_date: form.due_date || undefined,
+    };
+
+    const result = await createProject(input);
+    setSaving(false);
+
+    if (result.success) {
+      toast.success('Project created!', { description: `"${input.name}" for ${input.client_name}` });
+      setShowNew(false);
+      setForm(defaultForm());
+    } else {
+      toast.error('Failed to create project', { description: result.error });
+    }
+  };
+
+  const handleStatusChange = async (id: string, status: 'active' | 'on-hold' | 'completed') => {
+    const result = await updateProject(id, { status });
+    if (result.success) toast.success(`Project marked as ${status}`);
+    else toast.error('Failed to update status');
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    await deleteProject(id);
+    toast.success('Project archived', { description: name });
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen">
       <Header title="Projects" subtitle="Track project progress and deliverables" />
 
       <div className="p-6 space-y-6">
-        {/* Summary */}
+        {/* Summary Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="animate-fade-in">
-            <CardContent className="p-4">
+          {/* Active */}
+          <Card className="animate-fade-in border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 to-transparent">
+            <CardContent className="p-5">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-success/10 flex items-center justify-center">
-                  <FolderKanban className="h-5 w-5 text-success" />
+                <div className="h-11 w-11 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">12</p>
+                  <p className="text-3xl font-bold text-foreground">
+                    {loading ? '–' : activeCount}
+                  </p>
                   <p className="text-sm text-muted-foreground">Active Projects</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          <Card className="animate-fade-in" style={{ animationDelay: '100ms' }}>
-            <CardContent className="p-4">
+
+          {/* On Hold */}
+          <Card className="animate-fade-in border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-transparent" style={{ animationDelay: '100ms' }}>
+            <CardContent className="p-5">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-warning/10 flex items-center justify-center">
-                  <FolderKanban className="h-5 w-5 text-warning" />
+                <div className="h-11 w-11 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                  <PauseCircle className="h-5 w-5 text-amber-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">3</p>
+                  <p className="text-3xl font-bold text-foreground">
+                    {loading ? '–' : onHoldCount}
+                  </p>
                   <p className="text-sm text-muted-foreground">On Hold</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-          <Card className="animate-fade-in" style={{ animationDelay: '200ms' }}>
-            <CardContent className="p-4">
+
+          {/* Completed */}
+          <Card className="animate-fade-in border-primary/20 bg-gradient-to-br from-primary/5 to-transparent" style={{ animationDelay: '200ms' }}>
+            <CardContent className="p-5">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <FolderKanban className="h-5 w-5 text-primary" />
+                <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">45</p>
+                  <p className="text-3xl font-bold text-foreground">
+                    {loading ? '–' : completedCount}
+                  </p>
                   <p className="text-sm text-muted-foreground">Completed</p>
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          {/* New Project Button */}
           <Card className="animate-fade-in" style={{ animationDelay: '300ms' }}>
-            <CardContent className="p-4 flex items-center justify-center">
-              <Button variant="accent" className="gap-2 w-full">
+            <CardContent className="p-5 flex items-center justify-center h-full">
+              <Button
+                variant="accent"
+                className="gap-2 w-full h-11 text-sm font-semibold shadow-lg shadow-primary/20"
+                onClick={() => setShowNew(true)}
+              >
                 <Plus className="h-4 w-4" />
                 New Project
               </Button>
@@ -150,95 +203,256 @@ export default function Projects() {
           </Card>
         </div>
 
-        {/* Projects Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {projects.map((project, index) => (
-            <Card
-              key={project.id}
-              className="animate-slide-up hover:shadow-medium transition-all duration-200"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">{project.client}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        'capitalize',
-                        statusStyles[project.status].bg,
-                        statusStyles[project.status].text
-                      )}
-                    >
-                      {project.status}
-                    </Badge>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>View Details</DropdownMenuItem>
-                        <DropdownMenuItem>Edit Project</DropdownMenuItem>
-                        <DropdownMenuItem>Add Phase</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">Archive</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Progress */}
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Progress</span>
-                    <span className="font-medium text-foreground">{project.progress}%</span>
-                  </div>
-                  <Progress value={project.progress} className="h-2" />
-                </div>
-
-                {/* Phases */}
-                <div className="flex gap-1">
-                  {project.phases.map((phase) => (
-                    <div
-                      key={phase.name}
-                      className={cn(
-                        'flex-1 h-1.5 rounded-full',
-                        phaseStatusColors[phase.status]
-                      )}
-                      title={`${phase.name}: ${phase.status}`}
-                    />
-                  ))}
-                </div>
-
-                {/* Footer */}
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4" />
-                    <span>Due {project.dueDate.toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Users className="h-4 w-4 text-muted-foreground mr-1" />
-                    <div className="flex -space-x-2">
-                      {project.assignedTo.slice(0, 3).map((person, i) => (
-                        <Avatar key={i} className="h-6 w-6 border-2 border-card">
-                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                            {person.split(' ').map(n => n[0]).join('')}
-                          </AvatarFallback>
-                        </Avatar>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        {/* Filters Bar */}
+        <div className="flex flex-col sm:flex-row gap-3 justify-between">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search projects or clients..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex gap-2">
+            {(['all', 'active', 'on-hold', 'completed'] as const).map(s => (
+              <Button
+                key={s}
+                variant={statusFilter === s ? 'default' : 'outline'}
+                size="sm"
+                className="capitalize"
+                onClick={() => setStatusFilter(s)}
+              >
+                {s === 'all' ? 'All' : s}
+              </Button>
+            ))}
+          </div>
         </div>
+
+        {/* Projects Grid */}
+        {loading ? (
+          <div className="flex items-center justify-center py-24 text-muted-foreground gap-3">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <span>Loading projects…</span>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-4">
+            <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center">
+              <FolderKanban className="h-8 w-8 opacity-40" />
+            </div>
+            <div className="text-center">
+              <p className="font-semibold text-foreground">No projects yet</p>
+              <p className="text-sm mt-1">Click "New Project" to create your first project.</p>
+            </div>
+            <Button variant="accent" size="sm" className="gap-2 mt-2" onClick={() => setShowNew(true)}>
+              <Plus className="h-4 w-4" /> New Project
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+            {filtered.map((project, index) => {
+              const cfg = statusConfig[project.status];
+              const StatusIcon = cfg.icon;
+              const isOverdue = project.due_date && new Date(project.due_date) < new Date() && project.status !== 'completed';
+
+              return (
+                <Card
+                  key={project.id}
+                  className="animate-slide-up hover:shadow-medium transition-all duration-200 group border border-border/60"
+                  style={{ animationDelay: `${index * 60}ms` }}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-base leading-tight truncate">{project.name}</CardTitle>
+                        <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary/50 inline-block" />
+                          {project.client_name}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge
+                          variant="secondary"
+                          className={cn('capitalize gap-1 text-xs font-medium', cfg.bg, cfg.text, cfg.border, 'border')}
+                        >
+                          <StatusIcon className="h-3 w-3" />
+                          {project.status}
+                        </Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleStatusChange(project.id, 'active')}>Mark Active</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleStatusChange(project.id, 'on-hold')}>Put On Hold</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleStatusChange(project.id, 'completed')}>Mark Completed</DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => handleDelete(project.id, project.name)}
+                            >
+                              Archive Project
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-4">
+                    {/* Description */}
+                    {project.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">{project.description}</p>
+                    )}
+
+                    {/* Progress */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Progress</span>
+                        <span className={cn('font-semibold', project.progress === 100 ? 'text-emerald-600' : 'text-foreground')}>
+                          {project.progress}%
+                        </span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={cn('h-full rounded-full transition-all duration-500', progressColor(project.status))}
+                          style={{ width: `${project.progress}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex items-center justify-between pt-1">
+                      <div className={cn('flex items-center gap-1.5 text-xs', isOverdue ? 'text-destructive' : 'text-muted-foreground')}>
+                        {isOverdue ? <AlertCircle className="h-3.5 w-3.5" /> : <Calendar className="h-3.5 w-3.5" />}
+                        {project.due_date ? (
+                          <span>{isOverdue ? 'Overdue · ' : 'Due '}{format(new Date(project.due_date), 'MMM d, yyyy')}</span>
+                        ) : (
+                          <span>No due date</span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground/60">
+                        {format(new Date(project.created_at), 'MMM yyyy')}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      {/* ── New Project Modal ──────────────────────────────────────────────────── */}
+      <Dialog open={showNew} onOpenChange={setShowNew}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <FolderKanban className="h-5 w-5 text-primary" />
+              Create New Project
+            </DialogTitle>
+            <DialogDescription>
+              Link a project to a client and track its progress.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            {/* Client */}
+            <div>
+              <label className="text-sm font-semibold text-foreground mb-1.5 block">Client *</label>
+              {clientsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading clients…
+                </div>
+              ) : clients.length === 0 ? (
+                <p className="text-sm text-destructive">No clients found. Add a client first.</p>
+              ) : (
+                <Select value={form.client_id} onValueChange={v => setForm(p => ({ ...p, client_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select a client…" /></SelectTrigger>
+                  <SelectContent>
+                    {clients.map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}{c.company ? ` — ${c.company}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* Project Name */}
+            <div>
+              <label className="text-sm font-semibold text-foreground mb-1.5 block">Project Name *</label>
+              <Input
+                placeholder="e.g. Website Redesign, Social Media Campaign…"
+                value={form.name}
+                onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-1.5 block">Description</label>
+              <textarea
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[72px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="Brief description of the project scope…"
+                value={form.description}
+                onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+              />
+            </div>
+
+            {/* Status + Due Date */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-1.5 block">Status</label>
+                <Select value={form.status} onValueChange={v => setForm(p => ({ ...p, status: v as any }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="on-hold">On Hold</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-1.5 block">Due Date</label>
+                <Input
+                  type="date"
+                  value={form.due_date}
+                  onChange={e => setForm(p => ({ ...p, due_date: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* Progress */}
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-1.5 block flex justify-between">
+                <span>Initial Progress</span>
+                <span className="text-foreground font-semibold">{form.progress}%</span>
+              </label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={form.progress}
+                onChange={e => setForm(p => ({ ...p, progress: Number(e.target.value) }))}
+                className="w-full accent-primary cursor-pointer"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 justify-end pt-2">
+              <Button variant="outline" onClick={() => { setShowNew(false); setForm(defaultForm()); }}>Cancel</Button>
+              <Button variant="accent" onClick={handleCreate} disabled={saving} className="gap-2">
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                Create Project
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
