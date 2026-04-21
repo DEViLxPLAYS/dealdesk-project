@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Plus, FolderKanban, MoreHorizontal, Calendar,
+  Plus, Minus, FolderKanban, MoreHorizontal, Calendar,
   Loader2, CheckCircle2, PauseCircle, TrendingUp,
   Search, AlertCircle,
 } from 'lucide-react';
@@ -116,6 +116,12 @@ export default function Projects() {
     } else {
       toast.error('Failed to create project', { description: result.error });
     }
+  };
+
+  const handleProgressChange = async (id: string, current: number, delta: number) => {
+    const next = Math.min(100, Math.max(0, current + delta));
+    const result = await updateProject(id, { progress: next });
+    if (!result.success) toast.error('Failed to update progress');
   };
 
   const handleStatusChange = async (id: string, status: 'active' | 'on-hold' | 'completed') => {
@@ -307,12 +313,32 @@ export default function Projects() {
                     )}
 
                     {/* Progress */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Progress</span>
-                        <span className={cn('font-semibold', project.progress === 100 ? 'text-emerald-600' : 'text-foreground')}>
-                          {project.progress}%
-                        </span>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Progress</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleProgressChange(project.id, project.progress, -5)}
+                            disabled={project.progress === 0}
+                            className="h-5 w-5 rounded-full border border-border/60 flex items-center justify-center hover:bg-muted hover:border-primary/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <Minus className="h-2.5 w-2.5 text-muted-foreground" />
+                          </button>
+                          <span className={cn(
+                            'text-xs font-bold tabular-nums min-w-[2.5rem] text-center',
+                            project.progress === 100 ? 'text-emerald-600' :
+                            project.progress >= 60  ? 'text-primary' : 'text-foreground'
+                          )}>
+                            {project.progress}%
+                          </span>
+                          <button
+                            onClick={() => handleProgressChange(project.id, project.progress, 5)}
+                            disabled={project.progress === 100}
+                            className="h-5 w-5 rounded-full border border-border/60 flex items-center justify-center hover:bg-muted hover:border-primary/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <Plus className="h-2.5 w-2.5 text-muted-foreground" />
+                          </button>
+                        </div>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div
