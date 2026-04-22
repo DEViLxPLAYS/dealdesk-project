@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -233,6 +234,8 @@ export default function Contracts() {
   const [showContractModal, setShowContractModal] = useState(false);
   const [showProposalModal, setShowProposalModal] = useState(false);
 
+  const location = useLocation();
+
   // ── Forms ──────────────────────────────────────────────────────────────────
   const [cForm, setCForm] = useState({ clientId: '', title: '', template: '', value: '', status: 'draft' as ContractRow['status'], notes: '' });
   const [pForm, setPForm] = useState({ clientId: '', service: 'Social Media Marketing', title: '', value: '' });
@@ -267,6 +270,17 @@ export default function Contracts() {
       setPForm(p => ({ ...p, clientId: clients[0].id }));
     }
   }, [clients]);
+
+  // Open Create Contract automatically if navigated from Clients page or Header
+  useEffect(() => {
+    if ((location.state?.createContractForClient || location.state?.openCreateContract) && !loadingC && !clientsLoading) {
+      if (location.state?.createContractForClient) {
+        setCForm(p => ({ ...p, clientId: location.state.createContractForClient, template: 'Digital Marketing', title: 'Digital Marketing Agreement' }));
+      }
+      setShowContractModal(true);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, clientsLoading, loadingC]);
 
   // ── Select client helper ────────────────────────────────────────────────────
   const getClient = (id: string) => clients.find(c => c.id === id);

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -81,6 +82,17 @@ export default function Projects() {
   const [form, setForm]               = useState<NewProjectForm>(defaultForm());
   const [saving, setSaving]           = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.state?.openCreateProject && !loading && !clientsLoading) {
+      if (clients.length > 0) {
+        setForm(p => ({ ...p, client_id: clients[0].id }));
+      }
+      setShowNew(true);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, loading, clientsLoading, clients]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
   const filtered = projects.filter(p => {

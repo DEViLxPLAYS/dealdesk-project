@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -149,7 +150,7 @@ ${inv.notes ? `<div class="notes"><h3>Notes &amp; Terms</h3><p>${inv.notes}</p><
 }
 
 // ─── Empty form factory ────────────────────────────────────────────────────────
-const emptyForm = (count: number, clientId = '', clientName = '', clientCompany = '', clientEmail = ''): Partial<InvoiceRow> & { taxRate: number; clientId: string } => ({
+const emptyForm = (count: number, clientId = '', clientName = '', clientCompany = '', clientEmail = ''): Partial<InvoiceRow> & { taxRate: string | number; clientId: string } => ({
   clientId,
   client_name: clientName,
   client_company: clientCompany,
@@ -176,6 +177,8 @@ export default function Invoices() {
   const [saving, setSaving]               = useState(false);
   const [form, setForm]                   = useState<ReturnType<typeof emptyForm>>(emptyForm(0));
 
+  const location = useLocation();
+
   // ── Fetch invoices from Supabase ─────────────────────────────────────────────
   const fetchInvoices = useCallback(async () => {
     try {
@@ -195,6 +198,26 @@ export default function Invoices() {
   }, []);
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
+
+  // Open Create Invoice automatically if navigated from Clients page or Header Quick Add
+  useEffect(() => {
+    if ((location.state?.createInvoiceForClient || location.state?.openCreateInvoice) && !loadingInvoices && !clientsLoading) {
+      const cId = location.state?.createInvoiceForClient;
+      if (cId) {
+        const client = clients.find(c => c.id === cId);
+        if (client) {
+          setForm(emptyForm(invoices.length, client.id, client.name, client.company || '', client.email || ''));
+        }
+      } else if (clients.length > 0) {
+        // Generic open (from header)
+        const first = clients[0];
+        setForm(emptyForm(invoices.length, first.id, first.name, first.company || '', first.email || ''));
+      }
+      setShowCreate(true);
+      // Clear state to avoid reopening on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, clientsLoading, loadingInvoices, clients, invoices.length]);
 
   // Keep form invoice number in sync with current count
   const openCreateModal = () => {
@@ -228,7 +251,8 @@ export default function Invoices() {
 
   // ── Computed totals ───────────────────────────────────────────────────────────
   const subtotal = (form.items || []).reduce((a, i) => a + i.amount, 0);
-  const taxAmount = Math.round((subtotal * (form.taxRate || 0)) / 100);
+  const parsedTax = Number(form.taxRate) || 0;
+  const taxAmount = Math.round((subtotal * parsedTax) / 100);
   const total = subtotal + taxAmount - (form.discount || 0);
 
   // ── Save invoice ──────────────────────────────────────────────────────────────
@@ -513,16 +537,18 @@ export default function Invoices() {
                   {(form.items || []).map(item => (
                     <div key={item.id} className="grid grid-cols-12 gap-2 p-2 items-center">
                       <div className="col-span-5">
-                        <Select value={item.description} onValueChange={v => {
-                          const svc = SERVICE_CATALOGUE.find(s => s.description === v);
-                          updateItem(item.id, 'description', v);
-                          if (svc) updateItem(item.id, 'rate', svc.rate);
-                        }}>
-                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select service…" /></SelectTrigger>
-                          <SelectContent>
-                            {SERVICE_CATALOGUE.map(s => <SelectItem key={s.description} value={s.description}>{s.description}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
+                        <Input
+                          list="services-datalist"
+                          className="h-8 text-sm"
+                          placeholder="Type or select a service..."
+                          value={item.description}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const svc = SERVICE_CATALOGUE.find(s => s.description === v);
+                            updateItem(item.id, 'description', v);
+                            if (svc) updateItem(item.id, 'rate', svc.rate);
+                          }}
+                        />
                       </div>
                       <div className="col-span-2">
                         <Input type="number" value={item.quantity} min={1} className="h-8 text-sm text-center"
@@ -542,6 +568,9 @@ export default function Invoices() {
                   ))}
                 </div>
               </div>
+              <datalist id="services-datalist">
+                {SERVICE_CATALOGUE.map(s => <option key={s.description} value={s.description} />)}
+              </datalist>
             </div>
 
             {/* Totals */}
@@ -553,7 +582,7 @@ export default function Invoices() {
                 </div>
                 <div className="flex justify-between text-sm items-center gap-2">
                   <span className="text-muted-foreground flex items-center gap-2">
-                    Tax <Input type="number" value={form.taxRate || 0} className="h-6 w-14 text-xs" onChange={e => setForm(p => ({ ...p, taxRate: Number(e.target.value) }))} />%
+                    Tax <Input type="text" value={form.taxRate ?? ''} className="h-6 w-14 text-xs px-2" onChange={e => setForm(p => ({ ...p, taxRate: e.target.value }))} />%
                   </span>
                   <span className="font-medium">${taxAmount.toLocaleString()}</span>
                 </div>

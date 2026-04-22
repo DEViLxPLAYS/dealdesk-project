@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +19,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { mockClients as initialMockClients } from '@/data/mockData';
 import { Search, Plus, MoreHorizontal, Mail, Phone, MessageCircle, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -35,13 +39,24 @@ const leadSourceColors: Record<string, string> = {
 };
 
 export default function Clients() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
+  const [viewingClient, setViewingClient] = useState<Client | null>(null);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
 
   useEffect(() => {
     fetchClients();
   }, []);
+
+  useEffect(() => {
+    if (location.state?.openNewClient) {
+      setIsAddSheetOpen(true);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const fetchClients = async () => {
     try {
@@ -118,6 +133,47 @@ export default function Clients() {
     } catch (error) {
       console.error('Error adding client:', error);
       toast.error('Failed to add client');
+    }
+  };
+
+  const handleEditClient = async (updatedClient: Partial<Client>) => {
+    if (!editingClient) return;
+    try {
+      // Map UI names to DB names
+      const dbPayload = {
+        name: updatedClient.name,
+        email: updatedClient.email,
+        phone: updatedClient.phone,
+        whatsapp: updatedClient.whatsapp,
+        country: updatedClient.country,
+        company: updatedClient.company,
+        lead_source: updatedClient.leadSource,
+        message: updatedClient.message,
+        notes: updatedClient.notes,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase.from('clients').update(dbPayload).eq('id', editingClient.id);
+      if (error) throw error;
+
+      setClients(clients.map(c => c.id === editingClient.id ? { ...c, ...updatedClient, updatedAt: new Date() } as Client : c));
+      toast.success('Client updated successfully');
+      setEditingClient(null);
+    } catch (error) {
+      console.error('Error updating client:', error);
+      toast.error('Failed to update client');
+    }
+  };
+
+  const handleDeleteClient = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete ${name}? This cannot be undone.`)) return;
+    try {
+      const { error } = await supabase.from('clients').delete().eq('id', id);
+      if (error) throw error;
+      setClients(clients.filter(c => c.id !== id));
+      toast.success('Client deleted');
+    } catch {
+      toast.error('Failed to delete client');
     }
   };
 
@@ -237,11 +293,11 @@ export default function Clients() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>View Details</DropdownMenuItem>
-                        <DropdownMenuItem>Edit Client</DropdownMenuItem>
-                        <DropdownMenuItem>Create Invoice</DropdownMenuItem>
-                        <DropdownMenuItem>Create Contract</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setViewingClient(client)}>View Details</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setEditingClient(client)}>Edit Client</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate('/invoices', { state: { createInvoiceForClient: client.id } })}>Create Invoice</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate('/contracts', { state: { createContractForClient: client.id } })}>Create Contract</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteClient(client.id, client.name)}>Delete</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -251,6 +307,75 @@ export default function Clients() {
           </Table>
         </div>
       </div>
+
+      {/* View Client Details Dialog */}
+      {viewingClient && (
+        <Dialog open={!!viewingClient} onOpenChange={() => setViewingClient(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16 border-2 border-primary/20">
+                  <AvatarFallback className="bg-primary/10 text-primary text-xl font-bold">
+                    {viewingClient.name.split(' ').map((n) => n[0]).join('')}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <DialogTitle className="text-xl flex items-center gap-2">
+                    {viewingClient.name}
+                  </DialogTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {viewingClient.company || 'Independent'}
+                  </p>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="grid grid-cols-2 gap-6 py-4">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Contact Info</h4>
+                  <div className="space-y-2 text-sm bg-muted/30 p-3 rounded-lg border border-border/50">
+                    <p className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 opacity-70" /> {viewingClient.email}</p>
+                    <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 opacity-70" /> {viewingClient.phone || '-'}</p>
+                    <p className="flex items-center gap-2"><MessageCircle className="h-3.5 w-3.5 opacity-70" /> {viewingClient.whatsapp || '-'}</p>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Acquisition</h4>
+                  <div className="bg-muted/30 p-3 rounded-lg border border-border/50">
+                    <Badge variant="secondary" className={cn('capitalize text-xs', leadSourceColors[viewingClient.leadSource])}>
+                      {viewingClient.leadSource}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground mt-2">Added on {viewingClient.createdAt.toLocaleDateString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Location</h4>
+                  <div className="bg-muted/30 p-3 rounded-lg border border-border/50 text-sm">
+                    {viewingClient.country || 'Not specified'}
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Notes / Message</h4>
+                  <div className="bg-muted/30 p-3 rounded-lg border border-border/50 text-sm whitespace-pre-wrap min-h-[100px]">
+                    {viewingClient.message || viewingClient.notes || 'No notes available.'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+      {/* Edit Client Sheet */}
+      <AddClientSheet
+        open={!!editingClient}
+        onOpenChange={(op) => !op && setEditingClient(null)}
+        onAddClient={handleEditClient}
+        initialData={editingClient}
+      />
     </div>
   );
 }

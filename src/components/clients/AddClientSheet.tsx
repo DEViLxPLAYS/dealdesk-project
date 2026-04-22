@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -24,19 +24,36 @@ interface AddClientSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddClient: (client: Partial<Client>) => void;
+  initialData?: Partial<Client> | null;
 }
 
-export function AddClientSheet({ open, onOpenChange, onAddClient }: AddClientSheetProps) {
+export function AddClientSheet({ open, onOpenChange, onAddClient, initialData }: AddClientSheetProps) {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    company: '',
-    phone: '',
-    whatsapp: '',
-    country: '',
-    leadSource: 'website' as Client['leadSource'],
-    message: '',
+    name: initialData?.name || '',
+    email: initialData?.email || '',
+    company: initialData?.company || '',
+    phone: initialData?.phone || '',
+    whatsapp: initialData?.whatsapp || '',
+    country: initialData?.country || '',
+    leadSource: initialData?.leadSource || 'website',
+    message: initialData?.message || '',
   });
+
+  // Keep form in sync when initialData changes
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        name: initialData?.name || '',
+        email: initialData?.email || '',
+        company: initialData?.company || '',
+        phone: initialData?.phone || '',
+        whatsapp: initialData?.whatsapp || '',
+        country: initialData?.country || '',
+        leadSource: initialData?.leadSource || 'website',
+        message: initialData?.message || '',
+      });
+    }
+  }, [initialData, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,10 +88,10 @@ export function AddClientSheet({ open, onOpenChange, onAddClient }: AddClientShe
                 </div>
                 <div>
                   <SheetTitle className="text-2xl font-bold tracking-tight text-foreground">
-                    Create New Client Profile
+                    {initialData ? 'Edit Client Profile' : 'Create New Client Profile'}
                   </SheetTitle>
                   <SheetDescription className="text-muted-foreground font-medium">
-                    Please provide the full details to register a new partnership.
+                    {initialData ? 'Update the details for this partnership.' : 'Please provide the full details to register a new partnership.'}
                   </SheetDescription>
                 </div>
               </div>
@@ -270,7 +287,7 @@ export function AddClientSheet({ open, onOpenChange, onAddClient }: AddClientShe
               variant="accent"
               className="flex-[2.5] h-12 font-bold text-white tracking-tight shadow-lg shadow-primary/30 transition-all hover:scale-[1.02] active:scale-[0.98] rounded-xl"
             >
-              Verify & Add Client
+              {initialData ? 'Save Changes' : 'Verify & Add Client'}
             </Button>
           </div>
         </form>

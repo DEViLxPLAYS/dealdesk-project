@@ -1,4 +1,5 @@
-import { Bell, Search, Plus, UserPlus, Briefcase } from 'lucide-react';
+import { Bell, Search, Plus, UserPlus, Briefcase, FileText, FileSignature, FolderKanban } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -19,6 +20,8 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle, onAddClientClick, onAddDealClick }: HeaderProps) {
+  const navigate = useNavigate();
+
   return (
     <header className="sticky top-0 z-30 h-16 bg-background/80 backdrop-blur-md border-b border-border flex items-center justify-between px-6">
       <div>
@@ -44,10 +47,13 @@ export function Header({ title, subtitle, onAddClientClick, onAddDealClick }: He
               <span className="hidden sm:inline font-semibold tracking-wide">Quick Add</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl border-border/50 shadow-xl bg-background/95 backdrop-blur-xl">
+          <DropdownMenuContent align="end" className="w-56 p-2 rounded-xl border-border/50 shadow-xl bg-background/95 backdrop-blur-xl">
             <DropdownMenuItem 
               className="gap-3 py-2.5 px-3 cursor-pointer rounded-lg hover:bg-primary/5 focus:bg-primary/10 transition-colors"
-              onClick={onAddClientClick}
+              onClick={() => {
+                if (onAddClientClick) onAddClientClick();
+                navigate('/clients', { state: { openNewClient: true } });
+              }}
             >
               <div className="p-1.5 bg-primary/10 rounded-md">
                 <UserPlus className="h-4 w-4 text-primary" />
@@ -57,9 +63,13 @@ export function Header({ title, subtitle, onAddClientClick, onAddDealClick }: He
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Add to Roster</span>
               </div>
             </DropdownMenuItem>
+
             <DropdownMenuItem 
               className="gap-3 py-2.5 px-3 cursor-pointer rounded-lg hover:bg-success/5 focus:bg-success/10 transition-colors"
-              onClick={onAddDealClick}
+              onClick={() => {
+                if (onAddDealClick) onAddDealClick();
+                navigate('/pipeline', { state: { openNewDeal: true } });
+              }}
             >
               <div className="p-1.5 bg-success/10 rounded-md">
                 <Briefcase className="h-4 w-4 text-success" />
@@ -67,6 +77,45 @@ export function Header({ title, subtitle, onAddClientClick, onAddDealClick }: He
               <div className="flex flex-col">
                 <span className="font-semibold text-sm">New Deal</span>
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Add to Pipeline</span>
+              </div>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem 
+              className="gap-3 py-2.5 px-3 cursor-pointer rounded-lg hover:bg-amber-500/5 focus:bg-amber-500/10 transition-colors"
+              onClick={() => navigate('/invoices', { state: { openCreateInvoice: true } })}
+            >
+              <div className="p-1.5 bg-amber-500/10 rounded-md">
+                <FileText className="h-4 w-4 text-amber-500" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-semibold text-sm">New Invoice</span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Bill a Client</span>
+              </div>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem 
+              className="gap-3 py-2.5 px-3 cursor-pointer rounded-lg hover:bg-violet-500/5 focus:bg-violet-500/10 transition-colors"
+              onClick={() => navigate('/contracts', { state: { openCreateContract: true } })}
+            >
+              <div className="p-1.5 bg-violet-500/10 rounded-md">
+                <FileSignature className="h-4 w-4 text-violet-500" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-semibold text-sm">New Contract</span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Sign Agreement</span>
+              </div>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem 
+              className="gap-3 py-2.5 px-3 cursor-pointer rounded-lg hover:bg-pink-500/5 focus:bg-pink-500/10 transition-colors"
+              onClick={() => navigate('/projects', { state: { openCreateProject: true } })}
+            >
+              <div className="p-1.5 bg-pink-500/10 rounded-md">
+                <FolderKanban className="h-4 w-4 text-pink-500" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-semibold text-sm">New Project</span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Manage Work</span>
               </div>
             </DropdownMenuItem>
           </DropdownMenuContent>
