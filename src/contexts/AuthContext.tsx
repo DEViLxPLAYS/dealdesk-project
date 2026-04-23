@@ -38,10 +38,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('id, company_id, full_name, role, onboarded, avatar_url, created_at')
         .eq('id', userId)
-        .maybeSingle(); // maybeSingle won't throw if no row found
+        .maybeSingle();
 
       if (error) throw error;
-      setProfile(data as Profile | null);
+
+      let resolvedProfile = data as Profile | null;
+
+      // ── AUTO-RECOVERY ─────────────────────────────────────────────────────────
+      // If the profile exists but has no company_id, the link was broken
+      // (e.g. schema reset). Find a company this user previously created
+      // (created_by = their user id) and re-link automatically.
+      if (resolvedProfile && !resolvedProfile.company_id) {
+        const { data: ownedCompany } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('created_by', userId)
+          .maybeSingle();
+
+        if (ownedCompany?.id) {
+          // Re-link the profile row in the database
+          await supabase
+            .from('profiles')
+            .update({ company_id: ownedCompany.id, onboarded: true })
+            .eq('id', userId);
+
+          // Patch the in-memory profile so the app renders correctly immediately
+          resolvedProfile = { ...resolvedProfile, company_id: ownedCompany.id, onboarded: true };
+          console.log('[AuthContext] Auto-recovered company link for user:', userId);
+        }
+      }
+      // ──────────────────────────────────────────────────────────────────────────
+
+      setProfile(resolvedProfile);
     } catch (err) {
       console.error('fetchProfile error:', err);
       setProfile(null);
