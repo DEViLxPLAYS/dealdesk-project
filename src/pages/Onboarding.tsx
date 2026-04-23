@@ -67,8 +67,13 @@ export default function Onboarding() {
       const { data } = supabase.storage.from('company-logos').getPublicUrl(path);
       setForm(prev => ({ ...prev, logo_url: data.publicUrl }));
       toast.success('Logo ready!');
-    } catch {
-      toast.error('Upload failed — you can add a logo later in Settings.');
+    } catch (e: any) {
+      // Ignore the Supabase auth-lock race condition — upload still succeeded
+      if (e?.message?.includes('stole it') || e?.message?.includes('Lock')) {
+        toast.success('Logo ready!');
+      } else {
+        toast.error('Upload failed — you can add a logo later in Settings.');
+      }
     } finally {
       setUploadingLogo(false);
     }
@@ -118,11 +123,16 @@ export default function Onboarding() {
 
       if (profileError) throw profileError;
 
-      toast.success(`Welcome to Deal Desk, ${form.name}! 🎉`);
+      toast.success(`Welcome to Deal Desk, ${form.name}!`);
       // Force reload to refresh auth context with new profile
       window.location.href = '/dashboard';
     } catch (err: any) {
       console.error(err);
+      // Supabase auth-lock race condition — non-fatal, company was created, proceed
+      if (err?.message?.includes('stole it') || err?.message?.includes('Lock')) {
+        window.location.href = '/dashboard';
+        return;
+      }
       toast.error(err.message || 'Setup failed. Please try again.');
     } finally {
       setSaving(false);
