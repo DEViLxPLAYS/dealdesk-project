@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import Auth from "./pages/Auth";
+import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
 import Pipeline from "./pages/Pipeline";
@@ -21,26 +22,41 @@ import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
 
-// ── Auth guard: only lets authenticated users through ──────────────
-function RequireAuth() {
-  const { session, isLoading } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #ea580c, #f97316)' }}>
-            <span className="text-white font-black text-lg">DD</span>
-          </div>
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+// ── Loading splash ─────────────────────────────────────────────────
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4 animate-fade-in">
+        <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg"
+          style={{ background: 'linear-gradient(135deg, #ea580c, #f97316)' }}>
+          <span className="text-white font-black text-xl">DD</span>
         </div>
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  if (!session) {
-    return <Navigate to="/auth" replace />;
+// ── Redirect logged-in users away from /auth ───────────────────────
+function RedirectIfAuth() {
+  const { session, isLoading } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (session) return <Navigate to="/dashboard" replace />;
+  return <Outlet />;
+}
+
+// ── Require auth — gate for all protected routes ───────────────────
+function RequireAuth() {
+  const { session, profile, isLoading } = useAuth();
+
+  if (isLoading) return <LoadingScreen />;
+
+  // Not logged in → auth page
+  if (!session) return <Navigate to="/auth" replace />;
+
+  // Logged in but hasn't completed onboarding → onboarding page
+  if (profile && !profile.company_id && profile.role !== 'super_admin') {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return (
@@ -50,11 +66,15 @@ function RequireAuth() {
   );
 }
 
-// ── Redirect logged-in users away from auth page ──────────────────
-function RedirectIfAuth() {
-  const { session, isLoading } = useAuth();
-  if (isLoading) return null;
-  if (session) return <Navigate to="/dashboard" replace />;
+// ── Onboarding guard — only for logged-in users without company ────
+function RequireOnboarding() {
+  const { session, profile, isLoading } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (!session) return <Navigate to="/auth" replace />;
+  // Already onboarded → dashboard
+  if (profile?.company_id || profile?.role === 'super_admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
   return <Outlet />;
 }
 
@@ -66,12 +86,17 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            {/* Public routes */}
+            {/* Public: Auth */}
             <Route element={<RedirectIfAuth />}>
               <Route path="/auth" element={<Auth />} />
             </Route>
 
-            {/* Protected routes */}
+            {/* Semi-protected: Onboarding (logged in, no company yet) */}
+            <Route element={<RequireOnboarding />}>
+              <Route path="/onboarding" element={<Onboarding />} />
+            </Route>
+
+            {/* Fully protected: App */}
             <Route element={<RequireAuth />}>
               <Route element={<AppLayout />}>
                 <Route path="/dashboard" element={<Dashboard />} />
@@ -86,9 +111,9 @@ const App = () => (
               </Route>
             </Route>
 
-            {/* Redirects & 404 */}
-            <Route path="/"  element={<Navigate to="/dashboard" replace />} />
-            <Route path="*"  element={<NotFound />} />
+            {/* Root redirect */}
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
       </BrowserRouter>
