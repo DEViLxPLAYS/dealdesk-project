@@ -632,7 +632,7 @@ export default function Contracts() {
 
       {/* ── New Contract Modal ──────────────────────────────────────────────── */}
       <Dialog open={showContractModal} onOpenChange={setShowContractModal}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileSignature className="h-5 w-5 text-primary" /> Create New Contract
@@ -705,7 +705,7 @@ export default function Contracts() {
 
       {/* ── Send Proposal Modal ─────────────────────────────────────────────── */}
       <Dialog open={showProposalModal} onOpenChange={setShowProposalModal}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-violet-500" /> Send Proposal

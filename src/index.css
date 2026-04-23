@@ -206,3 +206,88 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
 }
+
+/* Mobile sidebar drawer */
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Smooth page transitions */
+@layer utilities {
+  .page-content {
+    @apply p-4 sm:p-6 space-y-4 sm:space-y-6;
+  }
+
+  .responsive-grid-2 {
+    @apply grid grid-cols-1 sm:grid-cols-2 gap-4;
+  }
+
+  .responsive-grid-3 {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4;
+  }
+
+  .responsive-grid-4 {
+    @apply grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4;
+  }
+
+  /* Hide scrollbar but keep scroll functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Touch-friendly tap targets */
+  .tap-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Card hover lift */
+  .card-hover {
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg;
+  }
+
+  /* Smooth number animation */
+  .shadow-soft {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+}
+
+/* ── Mobile responsive tweaks ─────────────────────────────────────── */
+@media (max-width: 1023px) {
+  /* Add top padding on mobile for the fixed header bar */
+  .mobile-page-wrapper {
+    padding-top: 3.5rem;
+  }
+}
+
+/* Disable text selection on nav items for better mobile UX */
+nav a, nav button {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Better mobile table scroll */
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+

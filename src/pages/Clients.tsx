@@ -23,12 +23,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { mockClients as initialMockClients } from '@/data/mockData';
-import { Search, Plus, MoreHorizontal, Mail, Phone, MessageCircle, Filter } from 'lucide-react';
+import { Search, Plus, MoreHorizontal, Mail, Phone, MessageCircle, Filter, FileDown, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AddClientSheet } from '@/components/clients/AddClientSheet';
 import { Client } from '@/types';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { generateClientPDF } from '@/lib/generateClientPDF';
 
 const leadSourceColors: Record<string, string> = {
   website: 'bg-primary/10 text-primary',
@@ -46,6 +47,20 @@ export default function Clients() {
   const [clients, setClients] = useState<Client[]>([]);
   const [viewingClient, setViewingClient] = useState<Client | null>(null);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
+
+  const handleDownloadPDF = async (client: Client) => {
+    setPdfLoadingId(client.id);
+    try {
+      await generateClientPDF(client);
+      toast.success(`Report downloaded for ${client.name}`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate PDF');
+    } finally {
+      setPdfLoadingId(null);
+    }
+  };
 
   useEffect(() => {
     fetchClients();
@@ -297,6 +312,16 @@ export default function Clients() {
                         <DropdownMenuItem onClick={() => setEditingClient(client)}>Edit Client</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => navigate('/invoices', { state: { createInvoiceForClient: client.id } })}>Create Invoice</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => navigate('/contracts', { state: { createContractForClient: client.id } })}>Create Contract</DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleDownloadPDF(client)}
+                          disabled={pdfLoadingId === client.id}
+                          className="gap-2 text-violet-600 focus:text-violet-600"
+                        >
+                          {pdfLoadingId === client.id
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <FileDown className="h-3.5 w-3.5" />}
+                          Download PDF Report
+                        </DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteClient(client.id, client.name)}>Delete</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
