@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import Auth from "./pages/Auth";
+import EmailConfirmed from "./pages/EmailConfirmed";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Clients from "./pages/Clients";
@@ -86,10 +87,11 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            {/* Public: Auth */}
+            {/* Public: Auth + Email confirmed */}
             <Route element={<RedirectIfAuth />}>
               <Route path="/auth" element={<Auth />} />
             </Route>
+            <Route path="/email-confirmed" element={<EmailConfirmed />} />
 
             {/* Semi-protected: Onboarding (logged in, no company yet) */}
             <Route element={<RequireOnboarding />}>

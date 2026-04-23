@@ -14,15 +14,13 @@ export default function Dashboard() {
   const { outstandingCount, thisMonthRevenue, revenueChange, loading: invLoading } = useInvoices();
   const { activeCount, loading: projLoading } = useProjects();
 
-  const loading = clientsLoading || invLoading || projLoading;
-
   return (
     <div className="min-h-screen">
       <Header title="Dashboard" subtitle="Welcome back! Here's your live business overview." />
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-[1600px] mx-auto">
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
           <StatCard
             title="Total Clients"
             value={clientsLoading ? '…' : clients.length}
@@ -46,20 +44,20 @@ export default function Dashboard() {
             value={invLoading ? '…' : `$${thisMonthRevenue.toLocaleString()}`}
             change={revenueChange}
             icon={DollarSign}
-            variant="accent"
+            variant="success"
           />
         </div>
 
         {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-6">
+          <div className="xl:col-span-2">
             <RevenueChart />
           </div>
           <LeadSourceChart />
         </div>
 
         {/* Pipeline & Activity */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
           <PipelineOverview />
           <RecentActivity />
         </div>

@@ -69,7 +69,7 @@ export default function Auth() {
         password,
         options: {
           data: { full_name: fullName, company_name: companyName },
-          emailRedirectTo: `${window.location.origin}/auth`,
+          emailRedirectTo: `https://dealdesk-iota.vercel.app/email-confirmed`,
         },
       });
       if (error) throw error;
