@@ -53,7 +53,7 @@ export function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClose }: Si
               className="h-8 w-8 rounded-lg object-cover flex-shrink-0" />
           ) : (
             <div className="h-8 w-8 rounded-lg flex-shrink-0 flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #ea580c, #f97316)' }}>
+              style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>
               <span className="text-white font-black text-sm">
                 {company?.name ? company.name.slice(0, 2).toUpperCase() : 'DD'}
               </span>
@@ -186,7 +186,7 @@ export function MobileNavBar({ onMenuClick }: { onMenuClick: () => void }) {
       </Button>
       <div className="flex items-center gap-2">
         <div className="h-7 w-7 rounded-lg flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg, #ea580c, #f97316)' }}>
+          style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>
           <span className="text-white font-black text-xs">DD</span>
         </div>
         <span className="font-bold text-sm text-sidebar-foreground">Deal Desk</span>

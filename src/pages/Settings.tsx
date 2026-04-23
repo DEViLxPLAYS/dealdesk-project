@@ -239,7 +239,7 @@ export default function Settings() {
                   <div className="flex justify-end">
                     <Button type="submit" disabled={savingProfile}
                       className={cn('gap-2 min-w-[140px]', savedProfile && 'bg-success')}
-                      style={!savedProfile ? { background: 'linear-gradient(135deg, #ea580c, #f97316)', color: 'white', border: 'none' } : {}}>
+                      style={!savedProfile ? { background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none' } : {}}>
                       {savingProfile ? (
                         <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
                       ) : savedProfile ? (
@@ -346,7 +346,7 @@ export default function Settings() {
                       ) : (
                         <Button onClick={() => handlePayPalSubscribe(plan.id)}
                           className="w-full gap-2"
-                          style={plan.popular ? { background: 'linear-gradient(135deg, #ea580c, #f97316)', color: 'white', border: 'none' } : {}}>
+                          style={plan.popular ? { background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none' } : {}}>
                           <ExternalLink className="h-3.5 w-3.5" />
                           Subscribe with PayPal
                         </Button>

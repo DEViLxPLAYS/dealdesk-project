@@ -28,7 +28,7 @@ function LoadingScreen() {
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="flex flex-col items-center gap-4 animate-fade-in">
         <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg"
-          style={{ background: 'linear-gradient(135deg, #ea580c, #f97316)' }}>
+          style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>
           <span className="text-white font-black text-xl">DD</span>
         </div>
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />

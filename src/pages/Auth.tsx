@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { Mail, Lock, User, Building2, ArrowRight, Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, Building2, ArrowRight, Loader2, CheckCircle2, Eye, EyeOff, Chrome } from 'lucide-react';
 
 type AuthMode = 'login' | 'signup' | 'confirm';
 
@@ -21,7 +22,6 @@ export default function Auth() {
   const [sessionChecking, setSessionChecking] = useState(true);
   const navigate = useNavigate();
 
-  // Auto-redirect if already logged in
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) navigate('/dashboard', { replace: true });
@@ -40,10 +40,9 @@ export default function Auth() {
         toast.warning('Please confirm your email first. Check your inbox.');
         return;
       }
-      toast.success('Welcome back!');
       navigate('/dashboard', { replace: true });
     } catch (error: any) {
-      toast.error(error.message || 'Login failed. Check your credentials.');
+      toast.error(error.message || 'Invalid email or password.');
     } finally {
       setLoading(false);
     }
@@ -76,7 +75,7 @@ export default function Auth() {
       if (error) throw error;
       setMode('confirm');
     } catch (error: any) {
-      toast.error(error.message || 'Signup failed. Try again.');
+      toast.error(error.message || 'Signup failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -92,145 +91,119 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* ── Left: Branding panel ── */}
-      <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden flex-col justify-between p-12"
-        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%)' }}>
-        {/* Animated background orbs */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-24 left-16 w-80 h-80 rounded-full opacity-10 animate-pulse"
-            style={{ background: 'radial-gradient(circle, #ea580c, transparent)' }} />
-          <div className="absolute bottom-32 right-12 w-96 h-96 rounded-full opacity-8 animate-pulse"
-            style={{ background: 'radial-gradient(circle, #f97316, transparent)', animationDelay: '1s' }} />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full opacity-5 animate-pulse"
-            style={{ background: 'radial-gradient(circle, #fb923c, transparent)', animationDelay: '2s' }} />
+      {/* ── Left branding panel ── */}
+      <div className="hidden lg:flex lg:w-1/2 gradient-primary p-12 flex-col justify-between relative overflow-hidden">
+        {/* Decorative orbs */}
+        <div className="absolute inset-0 opacity-10 pointer-events-none">
+          <div className="absolute top-20 left-20 w-64 h-64 rounded-full bg-white blur-3xl" />
+          <div className="absolute bottom-40 right-20 w-96 h-96 rounded-full bg-white blur-3xl" />
         </div>
-
-        {/* Grid pattern overlay */}
-        <div className="absolute inset-0 opacity-[0.03]"
-          style={{ backgroundImage: 'repeating-linear-gradient(0deg, #fff 0, #fff 1px, transparent 1px, transparent 60px), repeating-linear-gradient(90deg, #fff 0, #fff 1px, transparent 1px, transparent 60px)' }} />
 
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          <div className="h-11 w-11 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #ea580c, #f97316)' }}>
+          <div className="h-10 w-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
             <span className="text-white font-black text-lg">DD</span>
           </div>
-          <div>
-            <span className="text-white font-black text-2xl tracking-tight">Deal Desk</span>
-            <div className="text-xs text-orange-400/60 font-medium tracking-widest uppercase">Business CRM Platform</div>
-          </div>
+          <span className="text-white font-bold text-2xl">Deal Desk</span>
         </div>
 
-        {/* Hero text */}
-        <div className="relative z-10 space-y-8">
+        {/* Hero copy */}
+        <div className="relative z-10 space-y-6">
           <div className="space-y-4">
-            <h1 className="text-5xl font-black text-white leading-tight tracking-tight">
-              Run Your Agency<br />
-              <span style={{ WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                background: 'linear-gradient(90deg, #ea580c, #f97316, #fb923c)' }}>
-                Like a Machine
-              </span>
+            <h1 className="text-4xl font-bold text-white leading-tight">
+              Manage Your Business<br />Like a Pro
             </h1>
-            <p className="text-slate-400 text-lg leading-relaxed max-w-md">
-              Clients, invoices, contracts, proposals, projects — all in one seamless platform. Your brand, your data, your control.
+            <p className="text-white/80 text-lg max-w-md">
+              The all-in-one platform for invoicing, contracts, client management, and deal tracking. Built for agencies and service providers worldwide.
             </p>
           </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="flex gap-4">
             {[
-              { value: '10K+', label: 'Active Companies' },
+              { value: '10K+', label: 'Active Users' },
               { value: '$50M+', label: 'Invoices Sent' },
               { value: '98%', label: 'Satisfaction' },
             ].map(stat => (
-              <div key={stat.label} className="rounded-xl p-4 backdrop-blur-sm"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <p className="text-2xl font-black text-white">{stat.value}</p>
-                <p className="text-xs text-slate-500 mt-0.5">{stat.label}</p>
+              <div key={stat.label} className="bg-white/10 backdrop-blur-sm px-4 py-3 rounded-lg">
+                <p className="text-2xl font-bold text-white">{stat.value}</p>
+                <p className="text-sm text-white/70">{stat.label}</p>
               </div>
-            ))}
-          </div>
-
-          {/* Feature pills */}
-          <div className="flex flex-wrap gap-2">
-            {['Invoice Management', 'Deal Pipeline', 'Contract Builder', 'Client Portal', 'PDF Export'].map(f => (
-              <span key={f} className="px-3 py-1.5 rounded-full text-xs font-semibold text-orange-400"
-                style={{ background: 'rgba(234,88,12,0.12)', border: '1px solid rgba(234,88,12,0.2)' }}>
-                {f}
-              </span>
             ))}
           </div>
         </div>
 
-        <div className="relative z-10 text-slate-600 text-sm">
+        <div className="relative z-10 text-white/60 text-sm">
           © {new Date().getFullYear()} Deal Desk. All rights reserved.
         </div>
       </div>
 
-      {/* ── Right: Form panel ── */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 overflow-y-auto">
-        <div className="w-full max-w-md space-y-6 animate-fade-in">
-
+      {/* ── Right form panel ── */}
+      <div className="flex-1 flex items-center justify-center p-8 overflow-y-auto">
+        <div className="w-full max-w-md space-y-8 animate-fade-in">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-2">
-            <div className="h-10 w-10 rounded-xl flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #ea580c, #f97316)' }}>
-              <span className="text-white font-black text-sm">DD</span>
+          <div className="lg:hidden flex items-center gap-3 justify-center">
+            <div className="h-10 w-10 rounded-lg gradient-primary flex items-center justify-center">
+              <span className="text-white font-bold">DD</span>
             </div>
-            <span className="font-black text-xl text-foreground">Deal Desk</span>
+            <span className="font-bold text-xl text-foreground">Deal Desk</span>
           </div>
 
           {mode === 'confirm' ? (
             <ConfirmEmailScreen email={email} onBackToLogin={() => setMode('login')} />
           ) : (
             <>
-              <div>
-                <h2 className="text-3xl font-black text-foreground tracking-tight">
-                  {mode === 'login' ? 'Welcome back' : 'Start for free'}
+              <div className="text-center">
+                <h2 className="text-3xl font-bold text-foreground">
+                  {mode === 'login' ? 'Welcome back' : 'Create account'}
                 </h2>
-                <p className="text-muted-foreground mt-1.5">
+                <p className="text-muted-foreground mt-2">
                   {mode === 'login'
-                    ? 'Sign in to your company account'
-                    : 'Create your company account — no credit card required'}
+                    ? 'Enter your credentials to access your account'
+                    : 'Start your 14-day free trial today'}
                 </p>
               </div>
 
-              <form onSubmit={mode === 'login' ? handleLogin : handleSignup} className="space-y-4">
+              <form onSubmit={mode === 'login' ? handleLogin : handleSignup} className="space-y-5">
                 {mode === 'signup' && (
                   <>
                     <FormField id="fullName" label="Full Name" type="text"
                       placeholder="John Doe" value={fullName} onChange={setFullName}
-                      icon={<User className="h-4 w-4" />} />
+                      icon={<User className="h-5 w-5 text-muted-foreground" />} />
                     <FormField id="companyName" label="Company Name" type="text"
-                      placeholder="Digital Next" value={companyName} onChange={setCompanyName}
-                      icon={<Building2 className="h-4 w-4" />} />
+                      placeholder="Your Agency Name" value={companyName} onChange={setCompanyName}
+                      icon={<Building2 className="h-5 w-5 text-muted-foreground" />} />
                   </>
                 )}
 
-                <FormField id="email" label="Work Email" type="email"
+                <FormField id="email" label="Email" type="email"
                   placeholder="you@company.com" value={email} onChange={setEmail}
-                  icon={<Mail className="h-4 w-4" />} />
+                  icon={<Mail className="h-5 w-5 text-muted-foreground" />} />
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="password" className="text-sm font-semibold">Password</Label>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <Label htmlFor="password">Password</Label>
+                    {mode === 'login' && (
+                      <a href="#" className="text-sm text-primary hover:underline">Forgot password?</a>
+                    )}
+                  </div>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <Input id="password" type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••" value={password}
                       onChange={e => setPassword(e.target.value)}
                       className="pl-10 pr-10 h-12" required />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                    <button type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
 
                 {mode === 'signup' && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="confirmPassword" className="text-sm font-semibold">Confirm Password</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirm Password</Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <Input id="confirmPassword" type={showPassword ? 'text' : 'password'}
                         placeholder="••••••••" value={confirmPassword}
                         onChange={e => setConfirmPassword(e.target.value)}
@@ -239,38 +212,46 @@ export default function Auth() {
                   </div>
                 )}
 
-                {mode === 'login' && (
-                  <div className="flex justify-end">
-                    <button type="button" className="text-sm text-primary hover:underline font-medium">
-                      Forgot password?
-                    </button>
-                  </div>
-                )}
-
-                <Button type="submit" disabled={loading} size="lg" className="w-full h-12 gap-2 font-bold"
-                  style={{ background: 'linear-gradient(135deg, #ea580c, #f97316)', color: 'white', border: 'none' }}>
+                <Button type="submit" variant="gradient" size="xl" className="w-full gap-2" disabled={loading}>
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                     <>
-                      {mode === 'login' ? 'Sign In' : 'Create Free Account'}
+                      {mode === 'login' ? 'Sign In' : 'Create Account'}
                       <ArrowRight className="h-5 w-5" />
                     </>
                   )}
                 </Button>
               </form>
 
+              {mode === 'login' && (
+                <>
+                  <div className="relative">
+                    <Separator />
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-4 text-sm text-muted-foreground">
+                      or continue with
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Button variant="outline" size="lg" className="gap-2" onClick={() => toast.info('Google login coming soon')}>
+                      <Chrome className="h-5 w-5" /> Google
+                    </Button>
+                    <Button variant="outline" size="lg" className="gap-2" onClick={() => toast.info('Apple login coming soon')}>
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z" />
+                      </svg>
+                      Apple
+                    </Button>
+                  </div>
+                </>
+              )}
+
               <p className="text-center text-sm text-muted-foreground">
                 {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
-                <button type="button" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-                  className="text-primary font-bold hover:underline">
-                  {mode === 'login' ? 'Create one free' : 'Sign in'}
+                <button type="button"
+                  onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+                  className="text-primary font-semibold hover:underline">
+                  {mode === 'login' ? 'Sign up' : 'Sign in'}
                 </button>
               </p>
-
-              {mode === 'signup' && (
-                <p className="text-center text-xs text-muted-foreground">
-                  By creating an account you agree to our Terms of Service. A confirmation email will be sent to verify your address.
-                </p>
-              )}
             </>
           )}
         </div>
@@ -284,10 +265,10 @@ function FormField({ id, label, type, placeholder, value, onChange, icon }: {
   value: string; onChange: (v: string) => void; icon: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-sm font-semibold">{label}</Label>
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{icon}</span>
+        <span className="absolute left-3 top-1/2 -translate-y-1/2">{icon}</span>
         <Input id={id} type={type} placeholder={placeholder} value={value}
           onChange={e => onChange(e.target.value)} className="pl-10 h-12" required />
       </div>
@@ -312,23 +293,22 @@ function ConfirmEmailScreen({ email, onBackToLogin }: { email: string; onBackToL
   };
 
   return (
-    <div className="text-center space-y-6 py-8">
+    <div className="text-center space-y-6 py-4">
       <div className="flex justify-center">
-        <div className="h-20 w-20 rounded-full flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg, rgba(234,88,12,0.15), rgba(249,115,22,0.1))' }}>
-          <CheckCircle2 className="h-10 w-10 text-orange-500" />
+        <div className="h-20 w-20 rounded-full gradient-primary flex items-center justify-center shadow-glow">
+          <CheckCircle2 className="h-10 w-10 text-white" />
         </div>
       </div>
       <div className="space-y-2">
-        <h3 className="text-2xl font-black text-foreground">Check your email</h3>
+        <h3 className="text-2xl font-bold text-foreground">Check your email</h3>
         <p className="text-muted-foreground">
           We sent a confirmation link to<br />
           <span className="font-semibold text-foreground">{email}</span>
         </p>
       </div>
-      <div className="space-y-3 pt-2">
+      <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Didn't receive it? Check your spam folder or
+          Didn't receive it? Check your spam folder or resend below.
         </p>
         <Button variant="outline" onClick={resend} disabled={resending} className="gap-2">
           {resending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
@@ -336,8 +316,8 @@ function ConfirmEmailScreen({ email, onBackToLogin }: { email: string; onBackToL
         </Button>
         <div>
           <button type="button" onClick={onBackToLogin}
-            className="text-sm text-primary hover:underline font-medium">
-            ← Back to sign in
+            className="text-sm text-primary hover:underline">
+            Back to sign in
           </button>
         </div>
       </div>

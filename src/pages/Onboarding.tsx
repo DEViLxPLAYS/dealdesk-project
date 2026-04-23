@@ -137,7 +137,7 @@ export default function Onboarding() {
       <div className="flex items-center justify-between px-6 py-4 border-b border-border">
         <div className="flex items-center gap-2.5">
           <div className="h-9 w-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #ea580c, #f97316)' }}>
+            style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>
             <span className="text-white font-black text-sm">DD</span>
           </div>
           <span className="font-black text-lg text-foreground">Deal Desk</span>
@@ -151,7 +151,7 @@ export default function Onboarding() {
       <div className="h-1 bg-muted">
         <div
           className="h-full transition-all duration-500 ease-out"
-          style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #ea580c, #f97316)' }}
+          style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #4f46e5, #7c3aed)' }}
         />
       </div>
 
@@ -167,14 +167,14 @@ export default function Onboarding() {
                   s.id < step
                     ? 'text-white'
                     : s.id === step
-                    ? 'text-white ring-4 ring-orange-200'
+                    ? 'text-white ring-4 ring-primary/200'
                     : 'bg-muted text-muted-foreground'
                 )}
-                  style={s.id <= step ? { background: 'linear-gradient(135deg, #ea580c, #f97316)' } : {}}>
+                  style={s.id <= step ? { background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' } : {}}>
                   {s.id < step ? <Check className="h-4 w-4" /> : s.id}
                 </div>
                 {i < STEPS.length - 1 && (
-                  <div className={cn('h-0.5 w-12 rounded-full transition-all duration-500', s.id < step ? 'bg-orange-400' : 'bg-muted')} />
+                  <div className={cn('h-0.5 w-12 rounded-full transition-all duration-500', s.id < step ? 'bg-primary/400' : 'bg-muted')} />
                 )}
               </div>
             ))}
@@ -188,11 +188,11 @@ export default function Onboarding() {
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 rounded-xl"
                   style={{ background: 'linear-gradient(135deg, rgba(234,88,12,0.1), rgba(249,115,22,0.05))' }}>
-                  {step === 1 && <Building2 className="h-5 w-5 text-orange-500" />}
-                  {step === 2 && <Mail className="h-5 w-5 text-orange-500" />}
-                  {step === 3 && <Sparkles className="h-5 w-5 text-orange-500" />}
+                  {step === 1 && <Building2 className="h-5 w-5 text-primary-500" />}
+                  {step === 2 && <Mail className="h-5 w-5 text-primary-500" />}
+                  {step === 3 && <Sparkles className="h-5 w-5 text-primary-500" />}
                 </div>
-                <span className="text-xs font-bold text-orange-500 uppercase tracking-widest">
+                <span className="text-xs font-bold text-primary-500 uppercase tracking-widest">
                   Step {step} — {STEPS[step - 1].title}
                 </span>
               </div>
@@ -229,12 +229,12 @@ export default function Onboarding() {
 
                   {/* Live preview */}
                   {form.name && (
-                    <div className="rounded-xl p-4 border border-orange-200 animate-fade-in"
+                    <div className="rounded-xl p-4 border border-primary/200 animate-fade-in"
                       style={{ background: 'linear-gradient(135deg, rgba(234,88,12,0.04), transparent)' }}>
                       <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-2">Preview — Sidebar</p>
                       <div className="flex items-center gap-2.5">
                         <div className="h-8 w-8 rounded-lg flex items-center justify-center"
-                          style={{ background: 'linear-gradient(135deg, #ea580c, #f97316)' }}>
+                          style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>
                           <span className="text-white font-black text-xs">
                             {form.name.slice(0, 2).toUpperCase()}
                           </span>
@@ -275,7 +275,7 @@ export default function Onboarding() {
                     />
                   </div>
                   <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <span className="text-orange-400">ⓘ</span>
+                    <span className="text-primary-400">ⓘ</span>
                     All fields optional — you can fill these in later from Settings.
                   </p>
                 </div>
@@ -285,20 +285,20 @@ export default function Onboarding() {
               {step === 3 && (
                 <div className="space-y-5">
                   <div
-                    className="border-2 border-dashed border-border rounded-2xl p-8 text-center cursor-pointer transition-all hover:border-orange-400 hover:bg-orange-50/30 dark:hover:bg-orange-950/10 group"
+                    className="border-2 border-dashed border-border rounded-2xl p-8 text-center cursor-pointer transition-all hover:border-primary/400 hover:bg-primary/50/30 dark:hover:bg-primary/950/10 group"
                     onClick={() => fileRef.current?.click()}>
                     <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoSelect} />
 
                     {logoPreview ? (
                       <div className="flex flex-col items-center gap-4">
                         <img src={logoPreview} alt="logo preview"
-                          className="h-24 w-24 rounded-2xl object-contain ring-4 ring-orange-200 shadow-lg" />
+                          className="h-24 w-24 rounded-2xl object-contain ring-4 ring-primary/200 shadow-lg" />
                         <div>
                           <p className="font-bold text-foreground">Logo uploaded!</p>
                           <p className="text-sm text-muted-foreground mt-0.5">Click to change it</p>
                         </div>
                         {uploadingLogo && (
-                          <div className="flex items-center gap-2 text-orange-500 text-sm">
+                          <div className="flex items-center gap-2 text-primary-500 text-sm">
                             <Loader2 className="h-4 w-4 animate-spin" />
                             <span>Saving to cloud…</span>
                           </div>
@@ -306,8 +306,8 @@ export default function Onboarding() {
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-4">
-                        <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center group-hover:bg-orange-100 transition-colors">
-                          <Upload className="h-8 w-8 text-muted-foreground group-hover:text-orange-500 transition-colors" />
+                        <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center group-hover:bg-primary/100 transition-colors">
+                          <Upload className="h-8 w-8 text-muted-foreground group-hover:text-primary-500 transition-colors" />
                         </div>
                         <div>
                           <p className="font-bold text-foreground">Drop your logo here</p>
@@ -341,7 +341,7 @@ export default function Onboarding() {
                   onClick={() => setStep(s => s + 1)}
                   disabled={!canProceed()}
                   className="gap-2 px-6 min-w-[140px]"
-                  style={{ background: 'linear-gradient(135deg, #ea580c, #f97316)', color: 'white', border: 'none' }}>
+                  style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none' }}>
                   Continue
                   <ArrowRight className="h-4 w-4" />
                 </Button>
@@ -350,7 +350,7 @@ export default function Onboarding() {
                   onClick={handleFinish}
                   disabled={saving || uploadingLogo}
                   className="gap-2 px-6 min-w-[180px]"
-                  style={{ background: 'linear-gradient(135deg, #ea580c, #f97316)', color: 'white', border: 'none' }}>
+                  style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none' }}>
                   {saving ? (
                     <><Loader2 className="h-4 w-4 animate-spin" /> Creating workspace…</>
                   ) : (
