@@ -18,28 +18,43 @@ export interface SupabaseClient {
 export function useClients() {
   const [clients, setClients] = useState<SupabaseClient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchClients = async () => {
+    setLoading(true);
+    setError(null);
+
+    // 8-second timeout so the UI never hangs forever
+    const timeout = setTimeout(() => {
+      setLoading(false);
+      setError('Request timed out');
+      setClients([]);
+    }, 8000);
+
     try {
-      setLoading(true);
-      const { data, error } = await supabase
+      const { data, err } = await supabase
         .from('clients')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as any;
 
-      if (error) throw error;
+      clearTimeout(timeout);
+
+      if (err) throw err;
       setClients(data || []);
-    } catch (err) {
-      console.error('useClients: failed to fetch', err);
+    } catch (e: any) {
+      clearTimeout(timeout);
+      console.error('useClients error:', e?.message || e);
       setClients([]);
+      setError(e?.message || 'Failed to load clients');
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchClients();
-  }, []);
+  }, []); // eslint-disable-line
 
-  return { clients, loading, refetch: fetchClients };
+  return { clients, loading, error, refetch: fetchClients };
 }
