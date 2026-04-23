@@ -48,9 +48,11 @@ export function useProjects() {
 
   const createProject = async (input: CreateProjectInput): Promise<{ success: boolean; error?: string }> => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', session?.user?.id).single();
       const { data, error } = await supabase
         .from('projects')
-        .insert([{ ...input, updated_at: new Date().toISOString() }])
+        .insert([{ ...input, company_id: profile?.company_id, updated_at: new Date().toISOString() }])
         .select()
         .single();
       if (error) throw error;
