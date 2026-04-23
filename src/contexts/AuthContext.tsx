@@ -20,18 +20,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const fetchingRef = useRef(false); // prevents double fetch
+  const fetchingRef = useRef(false);
+  const currentUserIdRef = useRef<string | null>(null);
 
-  const fetchProfile = async (userId: string) => {
-    // Prevent duplicate concurrent fetches
+  // ── Profile fetcher (runs OUTSIDE onAuthStateChange to avoid GoTrue lock contention) ──
+  const fetchProfile = useCallback(async (userId: string) => {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
 
-    // Safety timeout — never hang loading forever
     const safetyTimer = setTimeout(() => {
       setIsLoading(false);
       fetchingRef.current = false;
-    }, 8000);
+    }, 10000);
 
     try {
       const { data, error } = await supabase
@@ -44,61 +44,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       let resolvedProfile = data as Profile | null;
 
-      // ── AUTO-RECOVERY ─────────────────────────────────────────────────────────
-      // If the profile exists but has no company_id, the link was broken
-      // (e.g. schema reset). Find a company this user previously created
-      // (created_by = their user id) and re-link automatically.
+      // ── AUTO-RECOVERY ──────────────────────────────────────────────────────────
+      // If the profile has no company_id (link was broken by schema reset or bug),
+      // find any company this user created (created_by = userId) and re-link it.
       if (resolvedProfile && !resolvedProfile.company_id) {
-        const { data: ownedCompany } = await supabase
-          .from('companies')
-          .select('id')
-          .eq('created_by', userId)
-          .maybeSingle();
+        try {
+          const { data: ownedCompany } = await supabase
+            .from('companies')
+            .select('id')
+            .eq('created_by', userId)
+            .maybeSingle();
 
-        if (ownedCompany?.id) {
-          // Re-link the profile row in the database
-          await supabase
-            .from('profiles')
-            .update({ company_id: ownedCompany.id, onboarded: true })
-            .eq('id', userId);
+          if (ownedCompany?.id) {
+            await supabase
+              .from('profiles')
+              .update({ company_id: ownedCompany.id, onboarded: true })
+              .eq('id', userId);
 
-          // Patch the in-memory profile so the app renders correctly immediately
-          resolvedProfile = { ...resolvedProfile, company_id: ownedCompany.id, onboarded: true };
-          console.log('[AuthContext] Auto-recovered company link for user:', userId);
+            resolvedProfile = {
+              ...resolvedProfile,
+              company_id: ownedCompany.id,
+              onboarded: true,
+            };
+            console.log('[AuthContext] Auto-recovered company_id for user:', userId);
+          }
+        } catch (recoveryErr) {
+          console.warn('[AuthContext] Auto-recovery failed (non-fatal):', recoveryErr);
         }
       }
-      // ──────────────────────────────────────────────────────────────────────────
+      // ───────────────────────────────────────────────────────────────────────────
 
       setProfile(resolvedProfile);
     } catch (err) {
-      console.error('fetchProfile error:', err);
+      console.error('[AuthContext] fetchProfile error:', err);
       setProfile(null);
     } finally {
       clearTimeout(safetyTimer);
       setIsLoading(false);
       fetchingRef.current = false;
     }
-  };
+  }, []);
 
+  // ── Auth state listener — LIGHTWEIGHT, no DB calls inside ─────────────────────
+  // We only track session/user here. Profile is fetched in a separate effect
+  // below so it never runs inside the GoTrue lock window.
   useEffect(() => {
     let mounted = true;
 
-    // Use onAuthStateChange as the SINGLE source of truth.
-    // It fires immediately with the current session on mount (INITIAL_SESSION event),
-    // so we do NOT need a separate getSession() call.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, currentSession) => {
+      (_event, currentSession) => {
         if (!mounted) return;
-
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
 
-        if (currentSession?.user) {
-          await fetchProfile(currentSession.user.id);
-        } else {
+        // If signed out, clear everything immediately
+        if (!currentSession?.user) {
           setProfile(null);
           setIsLoading(false);
           fetchingRef.current = false;
+          currentUserIdRef.current = null;
         }
       }
     );
@@ -107,20 +111,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
+  // ── Profile fetch — only re-runs when the logged-in user ID actually changes ──
+  // This deliberately does NOT re-run on TOKEN_REFRESHED (same userId = no re-run).
+  // That is correct: we don't need to re-fetch the profile on every token refresh.
+  useEffect(() => {
+    if (!user?.id) return;
 
-  // Call this after any DB update that changes the profile row (e.g. onboarding)
+    // If same user as before (e.g. token refresh), skip — profile already in state
+    if (currentUserIdRef.current === user.id && profile !== null) return;
+
+    currentUserIdRef.current = user.id;
+    fetchProfile(user.id);
+  }, [user?.id, fetchProfile]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── refreshProfile — forces a fresh fetch of the current user's profile ───────
+  // Call this after any operation that updates the profile row (e.g. onboarding).
   const refreshProfile = useCallback(async () => {
     const { data: { session: s } } = await supabase.auth.getSession();
     if (s?.user) {
-      fetchingRef.current = false; // allow fetchProfile to run again
+      fetchingRef.current = false;     // reset guard so fetch can run
+      currentUserIdRef.current = null; // reset cache so it re-fetches
       await fetchProfile(s.user.id);
     }
-  }, []);
+  }, [fetchProfile]);
+
+  const signOut = async () => {
+    setProfile(null);
+    currentUserIdRef.current = null;
+    await supabase.auth.signOut();
+  };
 
   const isSuperAdmin = profile?.role === 'super_admin';
 
