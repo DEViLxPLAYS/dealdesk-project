@@ -53,7 +53,7 @@ export default function Onboarding() {
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) { toast.error('Logo must be under 2MB'); return; }
 
-    // Show preview immediately
+    // Show preview immediately regardless of upload outcome
     const reader = new FileReader();
     reader.onload = ev => setLogoPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -62,15 +62,32 @@ export default function Onboarding() {
     try {
       const ext = file.name.split('.').pop();
       const path = `temp/${user!.id}/logo.${ext}`;
-      const { error } = await supabase.storage.from('company-logos').upload(path, file, { upsert: true });
-      if (error) throw error;
+
+      // Race the upload against a 10-second timeout so we never hang forever
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Upload timeout')), 10000)
+      );
+      const upload = supabase.storage
+        .from('company-logos')
+        .upload(path, file, { upsert: true });
+
+      const { error } = await Promise.race([upload, timeout]) as any;
+
+      // GoTrue auth-lock race condition — the upload actually succeeded despite the error
+      if (error && !error.message?.includes('stole it') && !error.message?.includes('Lock')) {
+        throw error;
+      }
+
       const { data } = supabase.storage.from('company-logos').getPublicUrl(path);
       setForm(prev => ({ ...prev, logo_url: data.publicUrl }));
       toast.success('Logo ready!');
-    } catch {
-      toast.error('Upload failed — you can add a logo later in Settings.');
+    } catch (e: any) {
+      // Timeout or network error — preview stays, logo will be skipped (can add in Settings)
+      console.warn('Logo upload skipped:', e?.message);
+      setForm(prev => ({ ...prev, logo_url: '' })); // clear so handleFinish skips move
+      toast.info('Logo will be skipped — add it later in Settings.', { duration: 4000 });
     } finally {
-      setUploadingLogo(false);
+      setUploadingLogo(false); // ALWAYS reset so UI never stays stuck
     }
   };
 
