@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
@@ -167,6 +168,7 @@ const emptyForm = (count: number, clientId = '', clientName = '', clientCompany 
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Invoices() {
+  const { profile } = useAuth();
   const { clients, loading: clientsLoading } = useClients();
 
   const [invoices, setInvoices]           = useState<InvoiceRow[]>([]);
@@ -262,6 +264,7 @@ export default function Invoices() {
 
     setSaving(true);
     const payload = {
+      company_id:      profile?.company_id,
       client_id:       form.clientId,
       client_name:     form.client_name,
       client_company:  form.client_company || '',

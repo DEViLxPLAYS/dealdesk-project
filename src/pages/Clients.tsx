@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +41,7 @@ const leadSourceColors: Record<string, string> = {
 };
 
 export default function Clients() {
+  const { profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
@@ -107,10 +109,16 @@ export default function Clients() {
   };
 
   const handleAddClient = async (newClientData: Partial<Client>) => {
+    if (!profile?.company_id) {
+      toast.error('Company setup required', { description: 'Please complete onboarding first.' });
+      navigate('/onboarding');
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from('clients')
         .insert([{
+          company_id: profile.company_id,
           name: newClientData.name || '',
           email: newClientData.email || '',
           phone: newClientData.phone || '',

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -222,6 +223,7 @@ h2 span{display:block;width:38px;height:3px;background:linear-gradient(135deg,#6
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Contracts() {
+  const { profile } = useAuth();
   const { clients, loading: clientsLoading } = useClients();
 
   const [contracts,  setContracts]  = useState<ContractRow[]>([]);
@@ -292,6 +294,7 @@ export default function Contracts() {
     setSaving(true);
     const cl = getClient(cForm.clientId)!;
     const payload: Omit<ContractRow, 'id'> = {
+      company_id:     profile?.company_id,
       client_id:      cForm.clientId,
       client_name:    cl.name,
       client_company: cl.company || '',
@@ -322,6 +325,7 @@ export default function Contracts() {
     setSaving(true);
     const cl = getClient(pForm.clientId)!;
     const payload: Omit<ProposalRow, 'id'> = {
+      company_id:     profile?.company_id,
       client_id:      pForm.clientId,
       client_name:    cl.name,
       client_company: cl.company || '',

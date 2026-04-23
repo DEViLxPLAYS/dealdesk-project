@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ const stages: { id: LeadStage; name: string; color: string }[] = [
 ];
 
 export default function Pipeline() {
+  const { profile } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [isAddDealOpen, setIsAddDealOpen] = useState(false);
@@ -106,9 +108,12 @@ export default function Pipeline() {
       toast.error('Deal creation failed', { description: 'A valid client must be selected.' });
       return;
     }
-
+    if (!profile?.company_id) {
+      toast.error('Company setup required'); return;
+    }
     try {
       const dbDealData = {
+        company_id: profile.company_id,
         client_id: newDealData.clientId || '',
         title: `${newDealData.client.name} Deal`,
         stage: newDealData.stage || 'new-lead',
