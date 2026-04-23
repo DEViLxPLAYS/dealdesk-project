@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { Profile } from '@/types/supabase';
@@ -19,67 +19,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const fetchingRef = useRef(false); // prevents double fetch
+
+  const fetchProfile = async (userId: string) => {
+    // Prevent duplicate concurrent fetches
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+
+    // Safety timeout — never hang loading forever
+    const safetyTimer = setTimeout(() => {
+      setIsLoading(false);
+      fetchingRef.current = false;
+    }, 8000);
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, company_id, full_name, role, onboarded, avatar_url, created_at')
+        .eq('id', userId)
+        .maybeSingle(); // maybeSingle won't throw if no row found
+
+      if (error) throw error;
+      setProfile(data as Profile | null);
+    } catch (err) {
+      console.error('fetchProfile error:', err);
+      setProfile(null);
+    } finally {
+      clearTimeout(safetyTimer);
+      setIsLoading(false);
+      fetchingRef.current = false;
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
 
-    async function getSession() {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        
-        if (mounted) {
-          setSession(session);
-          setUser(session?.user ?? null);
-          if (session?.user) {
-            await fetchProfile(session.user.id);
-          } else {
-            setIsLoading(false);
-          }
-        }
-      } catch (error) {
-        console.error('Error getting session:', error);
-        if (mounted) setIsLoading(false);
-      }
-    }
+    // Use onAuthStateChange as the SINGLE source of truth.
+    // It fires immediately with the current session on mount (INITIAL_SESSION event),
+    // so we do NOT need a separate getSession() call.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, currentSession) => {
+        if (!mounted) return;
 
-    getSession();
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (mounted) {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchProfile(session.user.id);
+        if (currentSession?.user) {
+          await fetchProfile(currentSession.user.id);
         } else {
           setProfile(null);
           setIsLoading(false);
+          fetchingRef.current = false;
         }
       }
-    });
+    );
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
-
-  async function fetchProfile(userId: string) {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      if (error) throw error;
-      setProfile(data as Profile);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const signOut = async () => {
     await supabase.auth.signOut();

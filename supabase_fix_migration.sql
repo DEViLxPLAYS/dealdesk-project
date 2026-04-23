@@ -1,14 +1,14 @@
 -- ═══════════════════════════════════════════════════════════════════
--- DEAL DESK — DEFINITIVE ONE-SHOT FIX
--- Handles ALL cases. Safe to run no matter what state your DB is in.
+-- DEAL DESK — FINAL FIX (Trigger + RLS infinite loop fix)
+-- Run this in Supabase SQL Editor. ONE TIME. Fixes everything.
 -- ═══════════════════════════════════════════════════════════════════
 
--- Step 1: Safely patch the profiles table columns
+-- Step 1: Safely add missing columns to profiles
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS company_id UUID;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS onboarded  BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
--- Step 2: Make old columns nullable (safe — skips if they don't exist)
+-- Step 2: Make old columns nullable (skips gracefully if they don't exist)
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='tier') THEN
@@ -23,10 +23,10 @@ BEGIN
   END IF;
 END $$;
 
--- Step 3: Drop ONLY the trigger (not functions — policies depend on them)
+-- Step 3: Drop only the trigger (not functions — policies depend on them)
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
--- Step 4: Replace all functions IN PLACE (CREATE OR REPLACE keeps RLS intact)
+-- Step 4: Replace functions in-place (no drop = no policy conflicts)
 CREATE OR REPLACE FUNCTION get_my_company_id()
 RETURNS UUID AS $$
   SELECT company_id FROM profiles WHERE id = auth.uid();
@@ -40,6 +40,7 @@ RETURNS BOOLEAN AS $$
   );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
+-- Step 5: Fixed trigger — only creates profile, no company (company comes from onboarding)
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -65,17 +66,34 @@ BEGIN
 
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
-  -- Log error but don't block the signup
   RAISE WARNING 'handle_new_user error: %', SQLERRM;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Step 5: Reattach trigger
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
+-- ─────────────────────────────────────────────────────────────────────
+-- Step 6: FIX THE INFINITE LOADING BUG
+-- The old profile_select policy called get_my_company_id() which reads
+-- from profiles → causing a circular RLS loop → query hangs forever.
+-- Fix: profiles table RLS only needs id = auth.uid() (users read own row).
+-- ─────────────────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "profile_select" ON profiles;
+DROP POLICY IF EXISTS "profile_insert" ON profiles;
+DROP POLICY IF EXISTS "profile_update" ON profiles;
+
+CREATE POLICY "profile_select" ON profiles
+  FOR SELECT USING (id = auth.uid());
+
+CREATE POLICY "profile_insert" ON profiles
+  FOR INSERT WITH CHECK (id = auth.uid());
+
+CREATE POLICY "profile_update" ON profiles
+  FOR UPDATE USING (id = auth.uid());
+
 -- ═══════════════════════════════════════════════════════════════════
--- DONE. You should see: "Success. No rows returned."
+-- DONE. Signup works. Refresh no longer hangs.
 -- ═══════════════════════════════════════════════════════════════════
