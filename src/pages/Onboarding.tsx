@@ -28,7 +28,7 @@ interface CompanyForm {
 }
 
 export default function Onboarding() {
-  const { user, profile } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -67,13 +67,8 @@ export default function Onboarding() {
       const { data } = supabase.storage.from('company-logos').getPublicUrl(path);
       setForm(prev => ({ ...prev, logo_url: data.publicUrl }));
       toast.success('Logo ready!');
-    } catch (e: any) {
-      // Ignore the Supabase auth-lock race condition — upload still succeeded
-      if (e?.message?.includes('stole it') || e?.message?.includes('Lock')) {
-        toast.success('Logo ready!');
-      } else {
-        toast.error('Upload failed — you can add a logo later in Settings.');
-      }
+    } catch {
+      toast.error('Upload failed — you can add a logo later in Settings.');
     } finally {
       setUploadingLogo(false);
     }
@@ -81,7 +76,7 @@ export default function Onboarding() {
 
   const canProceed = () => {
     if (step === 1) return form.name.trim().length >= 2;
-    return true; // steps 2 & 3 are optional
+    return true;
   };
 
   const handleFinish = async () => {
@@ -89,33 +84,41 @@ export default function Onboarding() {
     if (!user) return;
     setSaving(true);
     try {
-      // 1. Create the company
+      // 1. Create the company row
       const { data: company, error: companyError } = await supabase
         .from('companies')
         .insert([{
           name: form.name.trim(),
-          email: form.email,
-          phone: form.phone,
-          website: form.website,
-          address: form.address,
+          email: form.email || null,
+          phone: form.phone || null,
+          website: form.website || null,
+          address: form.address || null,
           logo_url: form.logo_url || null,
         }])
         .select()
         .single();
 
       if (companyError) throw companyError;
+      if (!company) throw new Error('Company was not created. Please try again.');
 
-      // 2. Move logo to proper path if exists
+      // 2. Move logo from temp path to permanent company path (non-fatal)
       if (form.logo_url && company.id) {
-        const ext = form.logo_url.split('.').pop()?.split('?')[0];
-        const oldPath = `temp/${user.id}/logo.${ext}`;
-        const newPath = `${company.id}/logo.${ext}`;
-        await supabase.storage.from('company-logos').move(oldPath, newPath);
-        const { data: urlData } = supabase.storage.from('company-logos').getPublicUrl(newPath);
-        await supabase.from('companies').update({ logo_url: `${urlData.publicUrl}?t=${Date.now()}` }).eq('id', company.id);
+        try {
+          const ext = form.logo_url.split('.').pop()?.split('?')[0];
+          const oldPath = `temp/${user.id}/logo.${ext}`;
+          const newPath = `${company.id}/logo.${ext}`;
+          await supabase.storage.from('company-logos').move(oldPath, newPath);
+          const { data: urlData } = supabase.storage.from('company-logos').getPublicUrl(newPath);
+          await supabase
+            .from('companies')
+            .update({ logo_url: `${urlData.publicUrl}?t=${Date.now()}` })
+            .eq('id', company.id);
+        } catch {
+          // Logo move is non-fatal — company is created, logo can be re-uploaded in Settings
+        }
       }
 
-      // 3. Link profile to company and mark onboarded
+      // 3. Link the profile to the company and mark onboarded
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ company_id: company.id, onboarded: true })
@@ -123,16 +126,14 @@ export default function Onboarding() {
 
       if (profileError) throw profileError;
 
-      toast.success(`Welcome to Deal Desk, ${form.name}!`);
-      // Force reload to refresh auth context with new profile
-      window.location.href = '/dashboard';
+      // 4. Refresh the auth context so sidebar, settings, and all pages
+      //    immediately see the new company_id without needing a page reload
+      await refreshProfile();
+
+      toast.success(`Welcome to Deal Desk, ${form.name}! 🎉`);
+      navigate('/dashboard', { replace: true });
     } catch (err: any) {
-      console.error(err);
-      // Supabase auth-lock race condition — non-fatal, company was created, proceed
-      if (err?.message?.includes('stole it') || err?.message?.includes('Lock')) {
-        window.location.href = '/dashboard';
-        return;
-      }
+      console.error('Onboarding error:', err);
       toast.error(err.message || 'Setup failed. Please try again.');
     } finally {
       setSaving(false);
@@ -177,14 +178,14 @@ export default function Onboarding() {
                   s.id < step
                     ? 'text-white'
                     : s.id === step
-                    ? 'text-white ring-4 ring-primary/200'
+                    ? 'text-white ring-4 ring-primary/20'
                     : 'bg-muted text-muted-foreground'
                 )}
                   style={s.id <= step ? { background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' } : {}}>
                   {s.id < step ? <Check className="h-4 w-4" /> : s.id}
                 </div>
                 {i < STEPS.length - 1 && (
-                  <div className={cn('h-0.5 w-12 rounded-full transition-all duration-500', s.id < step ? 'bg-primary/400' : 'bg-muted')} />
+                  <div className={cn('h-0.5 w-12 rounded-full transition-all duration-500', s.id < step ? 'bg-primary' : 'bg-muted')} />
                 )}
               </div>
             ))}
@@ -194,15 +195,15 @@ export default function Onboarding() {
           <div className="bg-card border border-border rounded-2xl shadow-lg overflow-hidden">
             {/* Header */}
             <div className="p-6 sm:p-8 border-b border-border"
-              style={{ background: 'linear-gradient(135deg, rgba(234,88,12,0.04), rgba(249,115,22,0.02))' }}>
+              style={{ background: 'linear-gradient(135deg, rgba(79,70,229,0.04), rgba(124,58,237,0.02))' }}>
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 rounded-xl"
-                  style={{ background: 'linear-gradient(135deg, rgba(234,88,12,0.1), rgba(249,115,22,0.05))' }}>
-                  {step === 1 && <Building2 className="h-5 w-5 text-primary-500" />}
-                  {step === 2 && <Mail className="h-5 w-5 text-primary-500" />}
-                  {step === 3 && <Sparkles className="h-5 w-5 text-primary-500" />}
+                  style={{ background: 'linear-gradient(135deg, rgba(79,70,229,0.1), rgba(124,58,237,0.05))' }}>
+                  {step === 1 && <Building2 className="h-5 w-5 text-primary" />}
+                  {step === 2 && <Mail className="h-5 w-5 text-primary" />}
+                  {step === 3 && <Sparkles className="h-5 w-5 text-primary" />}
                 </div>
-                <span className="text-xs font-bold text-primary-500 uppercase tracking-widest">
+                <span className="text-xs font-bold text-primary uppercase tracking-widest">
                   Step {step} — {STEPS[step - 1].title}
                 </span>
               </div>
@@ -239,8 +240,8 @@ export default function Onboarding() {
 
                   {/* Live preview */}
                   {form.name && (
-                    <div className="rounded-xl p-4 border border-primary/200 animate-fade-in"
-                      style={{ background: 'linear-gradient(135deg, rgba(234,88,12,0.04), transparent)' }}>
+                    <div className="rounded-xl p-4 border border-primary/20 animate-fade-in"
+                      style={{ background: 'linear-gradient(135deg, rgba(79,70,229,0.04), transparent)' }}>
                       <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-2">Preview — Sidebar</p>
                       <div className="flex items-center gap-2.5">
                         <div className="h-8 w-8 rounded-lg flex items-center justify-center"
@@ -284,9 +285,8 @@ export default function Onboarding() {
                       onChange={setField('address')} icon={<MapPin className="h-4 w-4" />}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <span className="text-primary-400">ⓘ</span>
-                    All fields optional — you can fill these in later from Settings.
+                  <p className="text-xs text-muted-foreground">
+                    ⓘ All fields optional — you can fill these in later from Settings.
                   </p>
                 </div>
               )}
@@ -295,20 +295,20 @@ export default function Onboarding() {
               {step === 3 && (
                 <div className="space-y-5">
                   <div
-                    className="border-2 border-dashed border-border rounded-2xl p-8 text-center cursor-pointer transition-all hover:border-primary/400 hover:bg-primary/50/30 dark:hover:bg-primary/950/10 group"
+                    className="border-2 border-dashed border-border rounded-2xl p-8 text-center cursor-pointer transition-all hover:border-primary/40 hover:bg-primary/5 group"
                     onClick={() => fileRef.current?.click()}>
                     <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoSelect} />
 
                     {logoPreview ? (
                       <div className="flex flex-col items-center gap-4">
                         <img src={logoPreview} alt="logo preview"
-                          className="h-24 w-24 rounded-2xl object-contain ring-4 ring-primary/200 shadow-lg" />
+                          className="h-24 w-24 rounded-2xl object-contain ring-4 ring-primary/20 shadow-lg" />
                         <div>
                           <p className="font-bold text-foreground">Logo uploaded!</p>
                           <p className="text-sm text-muted-foreground mt-0.5">Click to change it</p>
                         </div>
                         {uploadingLogo && (
-                          <div className="flex items-center gap-2 text-primary-500 text-sm">
+                          <div className="flex items-center gap-2 text-primary text-sm">
                             <Loader2 className="h-4 w-4 animate-spin" />
                             <span>Saving to cloud…</span>
                           </div>
@@ -316,8 +316,8 @@ export default function Onboarding() {
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-4">
-                        <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center group-hover:bg-primary/100 transition-colors">
-                          <Upload className="h-8 w-8 text-muted-foreground group-hover:text-primary-500 transition-colors" />
+                        <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                          <Upload className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
                         </div>
                         <div>
                           <p className="font-bold text-foreground">Drop your logo here</p>

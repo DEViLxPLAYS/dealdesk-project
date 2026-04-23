@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { Profile } from '@/types/supabase';
@@ -10,6 +10,7 @@ interface AuthContextType {
   isLoading: boolean;
   isSuperAdmin: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -84,10 +85,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
   };
 
+  // Call this after any DB update that changes the profile row (e.g. onboarding)
+  const refreshProfile = useCallback(async () => {
+    const { data: { session: s } } = await supabase.auth.getSession();
+    if (s?.user) {
+      fetchingRef.current = false; // allow fetchProfile to run again
+      await fetchProfile(s.user.id);
+    }
+  }, []);
+
   const isSuperAdmin = profile?.role === 'super_admin';
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, isLoading, isSuperAdmin, signOut }}>
+    <AuthContext.Provider value={{ session, user, profile, isLoading, isSuperAdmin, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

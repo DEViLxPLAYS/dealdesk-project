@@ -32,14 +32,14 @@ export function useClients() {
     }, 8000);
 
     try {
-      const { data, err } = await supabase
+      const { data, error } = await supabase
         .from('clients')
         .select('*')
         .order('created_at', { ascending: false }) as any;
 
       clearTimeout(timeout);
 
-      if (err) throw err;
+      if (error) throw error;
       setClients(data || []);
     } catch (e: any) {
       clearTimeout(timeout);
