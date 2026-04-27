@@ -72,16 +72,25 @@ BEGIN
   END IF;
 
   -- Create auth user
+  -- NOTE: instance_id and raw_app_meta_data are required by GoTrue for password auth.
   INSERT INTO auth.users (
+    instance_id,
     id, email, encrypted_password, email_confirmed_at,
-    raw_user_meta_data, created_at, updated_at, aud, role
+    raw_user_meta_data, raw_app_meta_data,
+    created_at, updated_at, aud, role,
+    confirmation_token, recovery_token,
+    is_sso_user
   ) VALUES (
+    '00000000-0000-0000-0000-000000000000',  -- GoTrue default instance
     gen_random_uuid(),
     v_email,
     extensions.crypt(p_password, extensions.gen_salt('bf')),
-    now(),
+    now(),                                   -- pre-confirmed; no email needed
     jsonb_build_object('full_name', p_display_name),
-    now(), now(), 'authenticated', 'authenticated'
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    now(), now(), 'authenticated', 'authenticated',
+    '', '',                                  -- empty tokens (not needed for team logins)
+    false
   )
   RETURNING id INTO v_user_id;
 
