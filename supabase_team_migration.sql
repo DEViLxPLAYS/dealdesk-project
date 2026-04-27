@@ -3,6 +3,10 @@
 -- Run this in your Supabase SQL Editor
 -- ============================================================
 
+-- 0. Enable pgcrypto (needed for crypt/gen_salt used in create_team_member)
+--    Supabase puts it in the 'extensions' schema.
+CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA extensions;
+
 -- 1. Extend role CHECK constraint to include manager + employee
 ALTER TABLE profiles
   DROP CONSTRAINT IF EXISTS profiles_role_check;
@@ -31,7 +35,7 @@ CREATE OR REPLACE FUNCTION create_team_member(
 RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_company_id  UUID;
@@ -74,7 +78,7 @@ BEGIN
   ) VALUES (
     gen_random_uuid(),
     v_email,
-    crypt(p_password, gen_salt('bf')),
+    extensions.crypt(p_password, extensions.gen_salt('bf')),
     now(),
     jsonb_build_object('full_name', p_display_name),
     now(), now(), 'authenticated', 'authenticated'
