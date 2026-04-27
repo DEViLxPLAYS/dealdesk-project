@@ -6,9 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { Mail, Lock, User, Building2, ArrowRight, Loader2, CheckCircle2, Eye, EyeOff, Chrome } from 'lucide-react';
+import { Mail, Lock, User, Building2, ArrowRight, Loader2, CheckCircle2, Eye, EyeOff, Chrome, Users, KeyRound } from 'lucide-react';
 
-type AuthMode = 'login' | 'signup' | 'confirm';
+type AuthMode = 'login' | 'signup' | 'confirm' | 'team';
 
 export default function Auth() {
   const [mode, setMode] = useState<AuthMode>('login');
@@ -20,6 +20,13 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sessionChecking, setSessionChecking] = useState(true);
+
+  // Team login state
+  const [teamUsername, setTeamUsername] = useState('');
+  const [teamCompany, setTeamCompany] = useState('');
+  const [teamPassword, setTeamPassword] = useState('');
+  const [showTeamPassword, setShowTeamPassword] = useState(false);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -76,6 +83,47 @@ export default function Auth() {
       setMode('confirm');
     } catch (error: any) {
       toast.error(error.message || 'Signup failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTeamLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!teamUsername || !teamCompany || !teamPassword) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+    setLoading(true);
+    try {
+      // Step 1: Resolve username + company → synthetic email via RPC
+      const { data: syntheticEmail, error: resolveError } = await supabase
+        .rpc('resolve_team_login', {
+          p_username: teamUsername.trim().toLowerCase(),
+          p_company_name: teamCompany.trim(),
+        });
+
+      if (resolveError) throw resolveError;
+      if (!syntheticEmail) throw new Error('Invalid username or company');
+
+      // Step 2: Sign in with the synthetic email
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: syntheticEmail,
+        password: teamPassword,
+      });
+
+      if (signInError) throw signInError;
+
+      navigate('/dashboard', { replace: true });
+    } catch (error: any) {
+      const msg = error.message || 'Invalid credentials';
+      if (msg.includes('Company not found') || msg.includes('Invalid username')) {
+        toast.error('Invalid username or company name');
+      } else if (msg.includes('Invalid login credentials')) {
+        toast.error('Incorrect password');
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -151,107 +199,211 @@ export default function Auth() {
             <ConfirmEmailScreen email={email} onBackToLogin={() => setMode('login')} />
           ) : (
             <>
-              <div className="text-center">
-                <h2 className="text-3xl font-bold text-foreground">
-                  {mode === 'login' ? 'Welcome back' : 'Create account'}
-                </h2>
-                <p className="text-muted-foreground mt-2">
-                  {mode === 'login'
-                    ? 'Enter your credentials to access your account'
-                    : 'Start your 14-day free trial today'}
-                </p>
-              </div>
-
-              <form onSubmit={mode === 'login' ? handleLogin : handleSignup} className="space-y-5">
-                {mode === 'signup' && (
-                  <>
-                    <FormField id="fullName" label="Full Name" type="text"
-                      placeholder="John Doe" value={fullName} onChange={setFullName}
-                      icon={<User className="h-5 w-5 text-muted-foreground" />} />
-                    <FormField id="companyName" label="Company Name" type="text"
-                      placeholder="Your Agency Name" value={companyName} onChange={setCompanyName}
-                      icon={<Building2 className="h-5 w-5 text-muted-foreground" />} />
-                  </>
-                )}
-
-                <FormField id="email" label="Email" type="email"
-                  placeholder="you@company.com" value={email} onChange={setEmail}
-                  icon={<Mail className="h-5 w-5 text-muted-foreground" />} />
-
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <Label htmlFor="password">Password</Label>
-                    {mode === 'login' && (
-                      <a href="#" className="text-sm text-primary hover:underline">Forgot password?</a>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input id="password" type={showPassword ? 'text' : 'password'}
-                      placeholder="••••••••" value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      className="pl-10 pr-10 h-12" required />
-                    <button type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
+              {/* ── Login type selector tabs (login / team) ── */}
+              {(mode === 'login' || mode === 'team') && (
+                <div className="flex gap-1 p-1 bg-muted/50 rounded-xl border border-border/50">
+                  <button
+                    type="button"
+                    onClick={() => setMode('login')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                      mode === 'login'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Mail className="h-4 w-4" />
+                    Owner Login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('team')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                      mode === 'team'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Users className="h-4 w-4" />
+                    Team Login
+                  </button>
                 </div>
+              )}
 
-                {mode === 'signup' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                      <Input id="confirmPassword" type={showPassword ? 'text' : 'password'}
-                        placeholder="••••••••" value={confirmPassword}
-                        onChange={e => setConfirmPassword(e.target.value)}
-                        className="pl-10 h-12" required />
-                    </div>
+              {/* ── Owner Login / Sign up mode ── */}
+              {(mode === 'login' || mode === 'signup') && (
+                <>
+                  <div className="text-center">
+                    <h2 className="text-3xl font-bold text-foreground">
+                      {mode === 'login' ? 'Welcome back' : 'Create account'}
+                    </h2>
+                    <p className="text-muted-foreground mt-2">
+                      {mode === 'login'
+                        ? 'Sign in to your owner account'
+                        : 'Start your 14-day free trial today'}
+                    </p>
                   </div>
-                )}
 
-                <Button type="submit" variant="gradient" size="xl" className="w-full gap-2" disabled={loading}>
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                  <form onSubmit={mode === 'login' ? handleLogin : handleSignup} className="space-y-5">
+                    {mode === 'signup' && (
+                      <>
+                        <FormField id="fullName" label="Full Name" type="text"
+                          placeholder="John Doe" value={fullName} onChange={setFullName}
+                          icon={<User className="h-5 w-5 text-muted-foreground" />} />
+                        <FormField id="companyName" label="Company Name" type="text"
+                          placeholder="Your Agency Name" value={companyName} onChange={setCompanyName}
+                          icon={<Building2 className="h-5 w-5 text-muted-foreground" />} />
+                      </>
+                    )}
+
+                    <FormField id="email" label="Email" type="email"
+                      placeholder="you@company.com" value={email} onChange={setEmail}
+                      icon={<Mail className="h-5 w-5 text-muted-foreground" />} />
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <Label htmlFor="password">Password</Label>
+                        {mode === 'login' && (
+                          <a href="#" className="text-sm text-primary hover:underline">Forgot password?</a>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input id="password" type={showPassword ? 'text' : 'password'}
+                          placeholder="••••••••" value={password}
+                          onChange={e => setPassword(e.target.value)}
+                          className="pl-10 pr-10 h-12" required />
+                        <button type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {mode === 'signup' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="confirmPassword">Confirm Password</Label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                          <Input id="confirmPassword" type={showPassword ? 'text' : 'password'}
+                            placeholder="••••••••" value={confirmPassword}
+                            onChange={e => setConfirmPassword(e.target.value)}
+                            className="pl-10 h-12" required />
+                        </div>
+                      </div>
+                    )}
+
+                    <Button type="submit" variant="gradient" size="xl" className="w-full gap-2" disabled={loading}>
+                      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                        <>
+                          {mode === 'login' ? 'Sign In' : 'Create Account'}
+                          <ArrowRight className="h-5 w-5" />
+                        </>
+                      )}
+                    </Button>
+                  </form>
+
+                  {mode === 'login' && (
                     <>
-                      {mode === 'login' ? 'Sign In' : 'Create Account'}
-                      <ArrowRight className="h-5 w-5" />
+                      <div className="relative">
+                        <Separator />
+                        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-4 text-sm text-muted-foreground">
+                          or continue with
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Button variant="outline" size="lg" className="gap-2" onClick={() => toast.info('Google login coming soon')}>
+                          <Chrome className="h-5 w-5" /> Google
+                        </Button>
+                        <Button variant="outline" size="lg" className="gap-2" onClick={() => toast.info('Apple login coming soon')}>
+                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z" />
+                          </svg>
+                          Apple
+                        </Button>
+                      </div>
                     </>
                   )}
-                </Button>
-              </form>
 
-              {mode === 'login' && (
-                <>
-                  <div className="relative">
-                    <Separator />
-                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-4 text-sm text-muted-foreground">
-                      or continue with
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Button variant="outline" size="lg" className="gap-2" onClick={() => toast.info('Google login coming soon')}>
-                      <Chrome className="h-5 w-5" /> Google
-                    </Button>
-                    <Button variant="outline" size="lg" className="gap-2" onClick={() => toast.info('Apple login coming soon')}>
-                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z" />
-                      </svg>
-                      Apple
-                    </Button>
-                  </div>
+                  <p className="text-center text-sm text-muted-foreground">
+                    {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
+                    <button type="button"
+                      onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+                      className="text-primary font-semibold hover:underline">
+                      {mode === 'login' ? 'Sign up' : 'Sign in'}
+                    </button>
+                  </p>
                 </>
               )}
 
-              <p className="text-center text-sm text-muted-foreground">
-                {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
-                <button type="button"
-                  onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-                  className="text-primary font-semibold hover:underline">
-                  {mode === 'login' ? 'Sign up' : 'Sign in'}
-                </button>
-              </p>
+              {/* ── Team Login mode ── */}
+              {mode === 'team' && (
+                <>
+                  <div className="text-center">
+                    <h2 className="text-3xl font-bold text-foreground">Team Sign In</h2>
+                    <p className="text-muted-foreground mt-2">
+                      Sign in with your username and company
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleTeamLogin} className="space-y-5">
+                    <FormField
+                      id="teamCompany"
+                      label="Company Name"
+                      type="text"
+                      placeholder="Your Company Name"
+                      value={teamCompany}
+                      onChange={setTeamCompany}
+                      icon={<Building2 className="h-5 w-5 text-muted-foreground" />}
+                    />
+                    <FormField
+                      id="teamUsername"
+                      label="Username"
+                      type="text"
+                      placeholder="your.username"
+                      value={teamUsername}
+                      onChange={setTeamUsername}
+                      icon={<User className="h-5 w-5 text-muted-foreground" />}
+                    />
+
+                    <div className="space-y-2">
+                      <Label htmlFor="teamPassword">Password</Label>
+                      <div className="relative">
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input
+                          id="teamPassword"
+                          type={showTeamPassword ? 'text' : 'password'}
+                          placeholder="••••••••"
+                          value={teamPassword}
+                          onChange={e => setTeamPassword(e.target.value)}
+                          className="pl-10 pr-10 h-12"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowTeamPassword(!showTeamPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showTeamPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <Users className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                      <p className="text-xs text-muted-foreground">
+                        Team members sign in with their username assigned by the company owner — not an email address.
+                      </p>
+                    </div>
+
+                    <Button type="submit" variant="gradient" size="xl" className="w-full gap-2" disabled={loading}>
+                      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                        <>Sign In as Team Member<ArrowRight className="h-5 w-5" /></>
+                      )}
+                    </Button>
+                  </form>
+                </>
+              )}
             </>
           )}
         </div>

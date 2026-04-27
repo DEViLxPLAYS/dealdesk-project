@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -74,6 +75,7 @@ const defaultForm = (): NewProjectForm => ({
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function Projects() {
+  const { profile } = useAuth();
   const { projects, loading, activeCount, onHoldCount, completedCount, createProject, updateProject, deleteProject } = useProjects();
   const { clients, loading: clientsLoading } = useClients();
 
@@ -105,17 +107,22 @@ export default function Projects() {
   const handleCreate = async () => {
     if (!form.client_id) { toast.error('Please select a client'); return; }
     if (!form.name.trim()) { toast.error('Project name is required'); return; }
+    if (!profile?.company_id) {
+      toast.error('Company not linked', { description: 'Please refresh the page and try again.' });
+      return;
+    }
 
     setSaving(true);
     const client = clients.find(c => c.id === form.client_id);
     const input: CreateProjectInput = {
-      client_id: form.client_id,
+      company_id:  profile.company_id,
+      client_id:   form.client_id,
       client_name: client?.name || '',
-      name: form.name.trim(),
+      name:        form.name.trim(),
       description: form.description || undefined,
-      status: form.status,
-      progress: form.progress,
-      due_date: form.due_date || undefined,
+      status:      form.status,
+      progress:    form.progress,
+      due_date:    form.due_date || undefined,
     };
 
     const result = await createProject(input);

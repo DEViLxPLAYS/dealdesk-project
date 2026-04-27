@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 
 export interface ProjectRow {
   id: string;
+  company_id: string;
   client_id: string | null;
   client_name: string;
   name: string;
@@ -15,6 +16,7 @@ export interface ProjectRow {
 }
 
 export interface CreateProjectInput {
+  company_id: string;          // required — caller must pass profile.company_id
   client_id: string;
   client_name: string;
   name: string;
@@ -37,7 +39,8 @@ export function useProjects() {
         .order('created_at', { ascending: false });
       if (error) throw error;
       setProjects((data as ProjectRow[]) || []);
-    } catch {
+    } catch (err: any) {
+      console.error('[useProjects] fetchProjects error:', err);
       setProjects([]);
     } finally {
       setLoading(false);
@@ -46,23 +49,36 @@ export function useProjects() {
 
   useEffect(() => { fetchProjects(); }, [fetchProjects]);
 
+  // ── Create project ─────────────────────────────────────────────────────────
+  // company_id is supplied by the caller (from profile.company_id in AuthContext).
+  // This avoids a secondary profile fetch and keeps RLS happy.
   const createProject = async (input: CreateProjectInput): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const { data: profile } = await supabase.from('profiles').select('company_id').eq('id', session?.user?.id).single();
       const { data, error } = await supabase
         .from('projects')
-        .insert([{ ...input, company_id: profile?.company_id, updated_at: new Date().toISOString() }])
+        .insert([{
+          company_id:   input.company_id,
+          client_id:    input.client_id,
+          client_name:  input.client_name,
+          name:         input.name,
+          description:  input.description ?? null,
+          status:       input.status,
+          progress:     input.progress,
+          due_date:     input.due_date ?? null,
+          updated_at:   new Date().toISOString(),
+        }])
         .select()
         .single();
       if (error) throw error;
       setProjects(prev => [data as ProjectRow, ...prev]);
       return { success: true };
     } catch (err: any) {
+      console.error('[useProjects] createProject error:', err);
       return { success: false, error: err?.message || 'Failed to create project' };
     }
   };
 
+  // ── Update project ─────────────────────────────────────────────────────────
   const updateProject = async (id: string, updates: Partial<ProjectRow>): Promise<{ success: boolean }> => {
     try {
       const { error } = await supabase
@@ -72,17 +88,24 @@ export function useProjects() {
       if (error) throw error;
       setProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
       return { success: true };
-    } catch {
+    } catch (err: any) {
+      console.error('[useProjects] updateProject error:', err);
       return { success: false };
     }
   };
 
+  // ── Delete project ─────────────────────────────────────────────────────────
   const deleteProject = async (id: string): Promise<void> => {
-    try { await supabase.from('projects').delete().eq('id', id); } catch { /* ignore */ }
+    try {
+      const { error } = await supabase.from('projects').delete().eq('id', id);
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('[useProjects] deleteProject error:', err);
+    }
     setProjects(prev => prev.filter(p => p.id !== id));
   };
 
-  // ── Derived stats ─────────────────────────────────────────────────────────────
+  // ── Derived stats ──────────────────────────────────────────────────────────
   const activeCount    = projects.filter(p => p.status === 'active').length;
   const onHoldCount    = projects.filter(p => p.status === 'on-hold').length;
   const completedCount = projects.filter(p => p.status === 'completed').length;

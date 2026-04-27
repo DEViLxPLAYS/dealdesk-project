@@ -56,6 +56,7 @@ function RequireAuth() {
   if (!session) return <Navigate to="/auth" replace />;
 
   // Logged in but hasn't completed onboarding → onboarding page
+  // Skip onboarding for team members (employees/managers who have company_id set by create_team_member)
   if (profile && !profile.company_id && profile.role !== 'super_admin') {
     return <Navigate to="/onboarding" replace />;
   }
@@ -75,6 +76,16 @@ function RequireOnboarding() {
   // Already onboarded → dashboard
   if (profile?.company_id || profile?.role === 'super_admin') {
     return <Navigate to="/dashboard" replace />;
+  }
+  return <Outlet />;
+}
+
+// ── Role guard — blocks employees from restricted routes ───────────
+function RequireRole({ allowed }: { allowed: string[] }) {
+  const { profile, isLoading } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (profile && !allowed.includes(profile.role)) {
+    return <Navigate to="/clients" replace />;
   }
   return <Outlet />;
 }
@@ -101,14 +112,19 @@ const App = () => (
             {/* Fully protected: App */}
             <Route element={<RequireAuth />}>
               <Route element={<AppLayout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
+                {/* Employee-blocked routes (owner / manager / admin / super_admin only) */}
+                <Route element={<RequireRole allowed={['owner', 'admin', 'manager', 'super_admin']} />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/reports"   element={<Reports />} />
+                </Route>
+
+                {/* Open to all roles */}
                 <Route path="/clients"   element={<Clients />} />
                 <Route path="/pipeline"  element={<Pipeline />} />
                 <Route path="/invoices"  element={<Invoices />} />
                 <Route path="/contracts" element={<Contracts />} />
                 <Route path="/projects"  element={<Projects />} />
                 <Route path="/messages"  element={<Messages />} />
-                <Route path="/reports"   element={<Reports />} />
                 <Route path="/settings"  element={<Settings />} />
               </Route>
             </Route>

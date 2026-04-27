@@ -261,10 +261,14 @@ export default function Invoices() {
   const handleSave = async () => {
     if (!form.clientId) { toast.error('Please select a client'); return; }
     if (!form.items?.length) { toast.error('Add at least one line item'); return; }
+    if (!profile?.company_id) {
+      toast.error('Company not linked', { description: 'Please refresh the page and try again.' });
+      return;
+    }
 
     setSaving(true);
     const payload = {
-      company_id:      profile?.company_id,
+      company_id:      profile.company_id,
       client_id:       form.clientId,
       client_name:     form.client_name,
       client_company:  form.client_company || '',
@@ -286,14 +290,12 @@ export default function Invoices() {
       if (error) throw error;
       setInvoices(prev => [data as InvoiceRow, ...prev]);
       toast.success('Invoice created!', { description: `${payload.invoice_number} for ${payload.client_name}` });
-    } catch {
-      // Fallback: table may not exist — store locally
-      const localRow: InvoiceRow = { ...payload, id: String(Date.now()), created_at: new Date().toISOString() } as InvoiceRow;
-      setInvoices(prev => [localRow, ...prev]);
-      toast.success('Invoice created!', { description: `${payload.invoice_number} for ${payload.client_name}` });
+      setShowCreate(false);
+    } catch (err: any) {
+      console.error('[Invoices] Save error:', err);
+      toast.error('Failed to save invoice', { description: err?.message || 'Database error — check console for details.' });
     } finally {
       setSaving(false);
-      setShowCreate(false);
     }
   };
 

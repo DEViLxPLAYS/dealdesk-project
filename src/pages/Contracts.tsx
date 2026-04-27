@@ -291,10 +291,14 @@ export default function Contracts() {
   const handleCreateContract = async () => {
     if (!cForm.clientId) { toast.error('Select a client'); return; }
     if (!cForm.template) { toast.error('Select a service type'); return; }
+    if (!profile?.company_id) {
+      toast.error('Company not linked', { description: 'Please refresh the page and try again.' });
+      return;
+    }
     setSaving(true);
     const cl = getClient(cForm.clientId)!;
-    const payload: Omit<ContractRow, 'id'> = {
-      company_id:     profile?.company_id,
+    const payload = {
+      company_id:     profile.company_id,
       client_id:      cForm.clientId,
       client_name:    cl.name,
       client_company: cl.company || '',
@@ -303,49 +307,54 @@ export default function Contracts() {
       status:         cForm.status,
       value:          cForm.value,
       notes:          cForm.notes,
-      created_at:     new Date().toISOString(),
     };
     try {
       const { data, error } = await supabase.from('contracts').insert([payload]).select().single();
       if (error) throw error;
       setContracts(prev => [data as ContractRow, ...prev]);
-    } catch {
-      // Table may not exist yet — store locally
-      setContracts(prev => [{ ...payload, id: String(Date.now()) }, ...prev]);
+      toast.success('Contract created!', { description: `${payload.title} for ${cl.name}` });
+      setShowContractModal(false);
+      setCForm({ clientId: clients[0]?.id || '', title: '', template: '', value: '', status: 'draft', notes: '' });
+    } catch (err: any) {
+      console.error('[Contracts] Save error:', err);
+      toast.error('Failed to save contract', { description: err?.message || 'Database error — check console for details.' });
+    } finally {
+      setSaving(false);
     }
-    toast.success('Contract created!', { description: `${payload.title} for ${cl.name}` });
-    setSaving(false);
-    setShowContractModal(false);
-    setCForm({ clientId: clients[0]?.id || '', title: '', template: '', value: '', status: 'draft', notes: '' });
   };
 
   // ── Send Proposal ───────────────────────────────────────────────────────────
   const handleSendProposal = async () => {
     if (!pForm.clientId) { toast.error('Select a client'); return; }
+    if (!profile?.company_id) {
+      toast.error('Company not linked', { description: 'Please refresh the page and try again.' });
+      return;
+    }
     setSaving(true);
     const cl = getClient(pForm.clientId)!;
-    const payload: Omit<ProposalRow, 'id'> = {
-      company_id:     profile?.company_id,
+    const payload = {
+      company_id:     profile.company_id,
       client_id:      pForm.clientId,
       client_name:    cl.name,
       client_company: cl.company || '',
       title:          pForm.title || `${pForm.service} Proposal`,
       service:        pForm.service,
-      status:         'sent',
+      status:         'sent' as ProposalRow['status'],
       value:          pForm.value,
-      created_at:     new Date().toISOString(),
     };
     try {
       const { data, error } = await supabase.from('proposals').insert([payload]).select().single();
       if (error) throw error;
       setProposals(prev => [data as ProposalRow, ...prev]);
-    } catch {
-      setProposals(prev => [{ ...payload, id: String(Date.now()) }, ...prev]);
+      toast.success('Proposal sent!', { description: `${payload.service} proposal for ${cl.name}` });
+      setShowProposalModal(false);
+      setPForm({ clientId: clients[0]?.id || '', service: 'Social Media Marketing', title: '', value: '' });
+    } catch (err: any) {
+      console.error('[Proposals] Save error:', err);
+      toast.error('Failed to save proposal', { description: err?.message || 'Database error — check console for details.' });
+    } finally {
+      setSaving(false);
     }
-    toast.success('Proposal sent!', { description: `${payload.service} proposal for ${cl.name}` });
-    setSaving(false);
-    setShowProposalModal(false);
-    setPForm({ clientId: clients[0]?.id || '', service: 'Social Media Marketing', title: '', value: '' });
   };
 
   // ── Status updaters ─────────────────────────────────────────────────────────

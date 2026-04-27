@@ -10,15 +10,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { toast } from 'sonner';
 
-const navigation = [
-  { name: 'Dashboard',  href: '/dashboard',  icon: LayoutDashboard },
-  { name: 'Clients',    href: '/clients',     icon: Users },
-  { name: 'Pipeline',   href: '/pipeline',    icon: Target },
-  { name: 'Invoices',   href: '/invoices',    icon: FileText },
-  { name: 'Contracts',  href: '/contracts',   icon: FileSignature },
-  { name: 'Projects',   href: '/projects',    icon: FolderKanban },
-  { name: 'Messages',   href: '/messages',    icon: MessageSquare },
-  { name: 'Reports',    href: '/reports',     icon: BarChart3 },
+const allNavigation = [
+  { name: 'Dashboard',  href: '/dashboard',  icon: LayoutDashboard, employeeHidden: true },
+  { name: 'Clients',    href: '/clients',     icon: Users,           employeeHidden: false },
+  { name: 'Pipeline',   href: '/pipeline',    icon: Target,          employeeHidden: false },
+  { name: 'Invoices',   href: '/invoices',    icon: FileText,        employeeHidden: false },
+  { name: 'Contracts',  href: '/contracts',   icon: FileSignature,   employeeHidden: false },
+  { name: 'Projects',   href: '/projects',    icon: FolderKanban,    employeeHidden: false },
+  { name: 'Messages',   href: '/messages',    icon: MessageSquare,   employeeHidden: false },
+  { name: 'Reports',    href: '/reports',     icon: BarChart3,       employeeHidden: true },
 ];
 
 interface SidebarProps {
@@ -31,8 +31,13 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onCollapse, mobileOpen, onMobileClose }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, isEmployee } = useAuth();
   const { company } = useCompany();
+
+  // Filter nav items based on role
+  const navigation = isEmployee
+    ? allNavigation.filter(item => !item.employeeHidden)
+    : allNavigation;
 
   const handleSignOut = async () => {
     await signOut();

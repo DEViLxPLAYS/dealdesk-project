@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,11 +11,268 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import {
   Building, CreditCard, Bell, Upload, Check, Loader2,
   Globe, Phone, Mail, MapPin, Shield, AlertCircle, ExternalLink,
+  Users, UserPlus, Trash2, Crown, UserCog, User,
 } from 'lucide-react';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+interface TeamMember {
+  id: string;
+  full_name: string | null;
+  username: string | null;
+  role: string;
+  avatar_url: string | null;
+  created_at: string;
+}
+
+// ── Team Member Row ────────────────────────────────────────────────────────────
+function RoleBadge({ role }: { role: string }) {
+  const styles: Record<string, string> = {
+    owner:   'bg-violet-500/15 text-violet-600 border-violet-500/30',
+    admin:   'bg-blue-500/15 text-blue-600 border-blue-500/30',
+    manager: 'bg-amber-500/15 text-amber-600 border-amber-500/30',
+    employee:'bg-emerald-500/15 text-emerald-600 border-emerald-500/30',
+  };
+  const icons: Record<string, React.ReactNode> = {
+    owner:   <Crown className="h-3 w-3" />,
+    admin:   <Shield className="h-3 w-3" />,
+    manager: <UserCog className="h-3 w-3" />,
+    employee:<User className="h-3 w-3" />,
+  };
+  return (
+    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border', styles[role] || 'bg-muted text-muted-foreground border-border')}>
+      {icons[role]}{role.charAt(0).toUpperCase() + role.slice(1)}
+    </span>
+  );
+}
+
+// ── Add Member Modal ───────────────────────────────────────────────────────────
+function AddMemberModal({ onClose, onAdded, callerRole }: { onClose: () => void; onAdded: () => void; callerRole: string }) {
+  const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState<'manager' | 'employee'>('employee');
+  const [saving, setSaving] = useState(false);
+
+  const canCreateManager = callerRole === 'owner' || callerRole === 'super_admin' || callerRole === 'admin';
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!displayName.trim() || !username.trim() || !password) {
+      toast.error('All fields are required');
+      return;
+    }
+    if (password.length < 6) { toast.error('Password must be at least 6 characters'); return; }
+    if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
+      toast.error('Username can only contain letters, numbers, dots, hyphens, and underscores');
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase.rpc('create_team_member', {
+        p_display_name: displayName.trim(),
+        p_username:     username.trim().toLowerCase(),
+        p_password:     password,
+        p_role:         role,
+      });
+      if (error) throw error;
+      toast.success(`Team member "${displayName}" created!`);
+      onAdded();
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create team member');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5 animate-fade-in"
+        onClick={e => e.stopPropagation()}
+      >
+        <div>
+          <h3 className="text-lg font-bold text-foreground">Add Team Member</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">Create a new team member login for your company.</p>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="tm-name">Display Name</Label>
+            <Input id="tm-name" placeholder="Jane Smith" value={displayName} onChange={e => setDisplayName(e.target.value)} className="h-10" required />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="tm-username">Username</Label>
+            <Input id="tm-username" placeholder="jane.smith" value={username} onChange={e => setUsername(e.target.value)} className="h-10" required />
+            <p className="text-xs text-muted-foreground">Used to sign in. Letters, numbers, dots, hyphens only.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="tm-password">Password</Label>
+            <Input id="tm-password" type="password" placeholder="Min 6 characters" value={password} onChange={e => setPassword(e.target.value)} className="h-10" required />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Role</Label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setRole('employee')}
+                className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm font-medium transition-all',
+                  role === 'employee' ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600' : 'border-border text-muted-foreground hover:border-primary/30'
+                )}
+              >
+                <User className="h-3.5 w-3.5" /> Employee
+              </button>
+              {canCreateManager && (
+                <button
+                  type="button"
+                  onClick={() => setRole('manager')}
+                  className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm font-medium transition-all',
+                    role === 'manager' ? 'bg-amber-500/10 border-amber-500/40 text-amber-600' : 'border-border text-muted-foreground hover:border-primary/30'
+                  )}
+                >
+                  <UserCog className="h-3.5 w-3.5" /> Manager
+                </button>
+              )}
+            </div>
+          </div>
+          <Separator />
+          <div className="flex gap-3 justify-end">
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button type="submit" disabled={saving} style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none' }}>
+              {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Creating…</> : <><UserPlus className="h-4 w-4 mr-1" />Add Member</>}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Team Tab Content ───────────────────────────────────────────────────────────
+function TeamTab({ callerRole }: { callerRole: string }) {
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const isOwner = callerRole === 'owner' || callerRole === 'super_admin' || callerRole === 'admin';
+
+  const fetchMembers = async () => {
+    setLoadingMembers(true);
+    try {
+      const { data, error } = await supabase.rpc('get_team_members');
+      if (error) throw error;
+      setMembers((data as TeamMember[]) || []);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load team members');
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  useEffect(() => { fetchMembers(); }, []);
+
+  const handleDelete = async (memberId: string, name: string | null) => {
+    if (!confirm(`Delete team member "${name || memberId}"? This cannot be undone.`)) return;
+    setDeletingId(memberId);
+    try {
+      const { error } = await supabase.rpc('delete_team_member', { p_user_id: memberId });
+      if (error) throw error;
+      toast.success(`Member removed`);
+      setMembers(prev => prev.filter(m => m.id !== memberId));
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete member');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <>
+      {showAddModal && (
+        <AddMemberModal
+          callerRole={callerRole}
+          onClose={() => setShowAddModal(false)}
+          onAdded={fetchMembers}
+        />
+      )}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Team Members</CardTitle>
+            <CardDescription>Manage who can access your company workspace.</CardDescription>
+          </div>
+          <Button
+            onClick={() => setShowAddModal(true)}
+            className="gap-2"
+            style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none' }}
+          >
+            <UserPlus className="h-4 w-4" /> Add Member
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {loadingMembers ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : members.length === 0 ? (
+            <div className="text-center py-12 space-y-3">
+              <Users className="h-12 w-12 text-muted-foreground/40 mx-auto" />
+              <p className="text-muted-foreground text-sm">No team members yet.</p>
+              <p className="text-xs text-muted-foreground">Add your first team member to get started.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {members.map((member) => (
+                <div key={member.id} className="flex items-center gap-3 p-3 rounded-xl border border-border/60 hover:border-border transition-colors bg-muted/20">
+                  <Avatar className="h-9 w-9 flex-shrink-0">
+                    <AvatarImage src={member.avatar_url || undefined} />
+                    <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
+                      {(member.full_name || member.username || '?').slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-foreground truncate">{member.full_name || '—'}</p>
+                    <p className="text-xs text-muted-foreground truncate">@{member.username || 'unknown'}</p>
+                  </div>
+                  <RoleBadge role={member.role} />
+                  {isOwner && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:bg-destructive/10 flex-shrink-0"
+                      onClick={() => handleDelete(member.id, member.full_name)}
+                      disabled={deletingId === member.id}
+                    >
+                      {deletingId === member.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-muted/60 bg-muted/20">
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">How Team Login Works</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>• Team members sign in at the same login page using the <strong>Team Login</strong> tab.</p>
+          <p>• They enter their <strong>Company Name</strong>, <strong>Username</strong>, and <strong>Password</strong>.</p>
+          <p>• <strong>Managers</strong> can add employees and view all data.</p>
+          <p>• <strong>Employees</strong> cannot access Dashboard or Reports.</p>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
 
 const PLANS = [
   {
@@ -44,7 +301,7 @@ const PLANS = [
 
 export default function Settings() {
   const { company, updateCompany, uploadLogo } = useCompany();
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, isOwnerOrManager, profile } = useAuth();
 
   // Form state mirrors company data for live editing
   const [form, setForm] = useState({
@@ -144,6 +401,11 @@ export default function Settings() {
             <TabsTrigger value="notifications" className="gap-2 text-xs sm:text-sm">
               <Bell className="h-3.5 w-3.5" /> Alerts
             </TabsTrigger>
+            {isOwnerOrManager && (
+              <TabsTrigger value="team" className="gap-2 text-xs sm:text-sm">
+                <Users className="h-3.5 w-3.5" /> Team
+              </TabsTrigger>
+            )}
             {isSuperAdmin && (
               <TabsTrigger value="admin" className="gap-2 text-xs sm:text-sm">
                 <Shield className="h-3.5 w-3.5" /> Admin
@@ -412,6 +674,13 @@ export default function Settings() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* ── Team Tab ── */}
+          {isOwnerOrManager && (
+            <TabsContent value="team" className="space-y-6 animate-fade-in">
+              <TeamTab callerRole={profile?.role || 'employee'} />
+            </TabsContent>
+          )}
 
           {/* ── Super Admin Tab ── */}
           {isSuperAdmin && (

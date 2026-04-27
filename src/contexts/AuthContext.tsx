@@ -9,6 +9,8 @@ interface AuthContextType {
   profile: Profile | null;
   isLoading: boolean;
   isSuperAdmin: boolean;
+  isEmployee: boolean;
+  isOwnerOrManager: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -36,7 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, company_id, full_name, role, onboarded, avatar_url, created_at')
+        .select('id, company_id, full_name, role, username, onboarded, avatar_url, created_at')
         .eq('id', userId)
         .maybeSingle();
 
@@ -144,9 +146,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isSuperAdmin = profile?.role === 'super_admin';
+  const isEmployee = profile?.role === 'employee';
+  const isOwnerOrManager = profile?.role === 'owner' || profile?.role === 'manager' || profile?.role === 'admin' || profile?.role === 'super_admin';
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, isLoading, isSuperAdmin, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ session, user, profile, isLoading, isSuperAdmin, isEmployee, isOwnerOrManager, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
