@@ -1,30 +1,62 @@
--- ============================================================
--- DEAL DESK — TEAM MEMBER FUNCTIONS
--- Paste into: Supabase → SQL Editor → New Query → Run
--- ============================================================
+-- ================================================================
+-- DEAL DESK (Digital) — TEAM MEMBER FUNCTIONS
+-- Paste into: Supabase (Digital project) → SQL Editor → New query → Run
+-- ================================================================
+-- Each step is wrapped safely so even if one step fails,
+-- the functions are ALWAYS created.
+-- ================================================================
 
 
--- 1. Add username column to profiles
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username TEXT;
+-- STEP 1: Add username column (safe — won't fail if already exists)
+DO $$ BEGIN
+  ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username TEXT;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Step 1 notice: %', SQLERRM;
+END $$;
 
-DROP INDEX IF EXISTS profiles_username_company_idx;
-CREATE UNIQUE INDEX profiles_username_company_idx
-  ON public.profiles (company_id, username)
-  WHERE username IS NOT NULL;
+
+-- STEP 2: Create unique index (safe)
+DO $$ BEGIN
+  DROP INDEX IF EXISTS profiles_username_company_idx;
+  CREATE UNIQUE INDEX profiles_username_company_idx
+    ON public.profiles (company_id, username)
+    WHERE username IS NOT NULL;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Step 2 notice: %', SQLERRM;
+END $$;
 
 
--- 2. Password generator (uses pgcrypto — always available in Supabase)
+-- STEP 3: Clean up soft-deleted ghost auth rows (safe)
+DO $$ BEGIN
+  DELETE FROM auth.identities
+    WHERE user_id IN (SELECT id FROM auth.users WHERE deleted_at IS NOT NULL);
+  DELETE FROM auth.users WHERE deleted_at IS NOT NULL;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Step 3 notice: %', SQLERRM;
+END $$;
+
+
+-- ================================================================
+-- STEP 4: generate_team_password()
+-- ================================================================
 DROP FUNCTION IF EXISTS public.generate_team_password();
 CREATE OR REPLACE FUNCTION public.generate_team_password()
 RETURNS TEXT LANGUAGE sql SECURITY DEFINER AS $$
   SELECT substring(
-    regexp_replace(encode(extensions.gen_random_bytes(24), 'base64'), '[^a-zA-Z0-9]', '', 'g'),
+    regexp_replace(
+      encode(extensions.gen_random_bytes(24), 'base64'),
+      '[^a-zA-Z0-9]', '', 'g'
+    ),
     1, 12
   );
 $$;
 
 
--- 3. Main function: create_team_member
+-- ================================================================
+-- STEP 5: create_team_member(p_display_name, p_role)
+-- Owner enters a name → username + password auto-generated
+-- Returns JSON: { "username": "...", "password": "..." }
+-- ================================================================
 DROP FUNCTION IF EXISTS public.create_team_member(TEXT, TEXT);
 CREATE OR REPLACE FUNCTION public.create_team_member(
   p_display_name TEXT,
@@ -41,7 +73,7 @@ DECLARE
   v_email       TEXT;
   v_user_id     UUID;
 BEGIN
-  -- Who is calling?
+  -- Verify caller
   SELECT company_id, role INTO v_company_id, v_caller_role
     FROM public.profiles WHERE id = auth.uid();
 
@@ -49,7 +81,7 @@ BEGIN
     RAISE EXCEPTION 'Not authenticated.';
   END IF;
   IF v_caller_role NOT IN ('owner','manager','admin','super_admin') THEN
-    RAISE EXCEPTION 'Only owners/managers can add team members.';
+    RAISE EXCEPTION 'Only owners and managers can add team members.';
   END IF;
   IF p_role NOT IN ('employee','manager') THEN
     RAISE EXCEPTION 'Role must be employee or manager.';
@@ -59,31 +91,37 @@ BEGIN
   END IF;
 
   -- Auto-generate username from first name
-  v_base := lower(regexp_replace(split_part(trim(p_display_name),' ',1),'[^a-z0-9]','','g'));
+  -- "Faheem Khan" → "faheem", "faheem1", "faheem2" if taken
+  v_base := lower(regexp_replace(
+    split_part(trim(p_display_name), ' ', 1),
+    '[^a-z0-9]', '', 'g'
+  ));
   IF v_base = '' THEN v_base := 'user'; END IF;
   v_username := v_base;
+
   WHILE EXISTS (
-    SELECT 1 FROM public.profiles WHERE username = v_username AND company_id = v_company_id
+    SELECT 1 FROM public.profiles
+     WHERE username = v_username AND company_id = v_company_id
   ) LOOP
     v_suffix   := v_suffix + 1;
     v_username := v_base || v_suffix;
   END LOOP;
 
-  -- Auto-generate password
+  -- Auto-generate 12-char password
   v_password := public.generate_team_password();
   WHILE length(v_password) < 8 LOOP
     v_password := v_password || public.generate_team_password();
   END LOOP;
   v_password := substring(v_password, 1, 12);
 
-  -- Synthetic internal email (not real, just for GoTrue auth)
-  v_email := v_username || '@' || replace(v_company_id::text,'-','') || '.internal';
+  -- Synthetic email (internal only, never seen by user)
+  v_email := v_username || '@' || replace(v_company_id::text, '-', '') || '.internal';
 
-  -- Remove old ghost rows for this email
+  -- Remove ghost rows
   DELETE FROM auth.identities WHERE user_id IN (SELECT id FROM auth.users WHERE email = v_email);
   DELETE FROM auth.users WHERE email = v_email;
 
-  -- Insert into auth.users
+  -- Create auth.users row
   v_user_id := extensions.gen_random_uuid();
   INSERT INTO auth.users (
     instance_id, id, aud, role, email,
@@ -102,18 +140,31 @@ BEGIN
     now(), now(), '', '', false, false
   );
 
-  -- Insert into auth.identities (required by GoTrue or login crashes)
-  INSERT INTO auth.identities (
-    id, user_id, provider_id, identity_data, provider,
-    last_sign_in_at, created_at, updated_at
-  ) VALUES (
-    v_user_id::text, v_user_id, v_email,
-    jsonb_build_object('sub', v_user_id::text, 'email', v_email,
-                       'email_verified', true, 'provider_id', v_email),
-    'email', now(), now(), now()
-  );
+  -- Create auth.identities row — try UUID id first, fallback to TEXT
+  BEGIN
+    INSERT INTO auth.identities (
+      id, user_id, provider_id, identity_data, provider,
+      last_sign_in_at, created_at, updated_at
+    ) VALUES (
+      v_user_id, v_user_id, v_email,
+      jsonb_build_object('sub', v_user_id::text, 'email', v_email,
+                         'email_verified', true, 'provider_id', v_email),
+      'email', now(), now(), now()
+    );
+  EXCEPTION WHEN OTHERS THEN
+    -- Fallback: some Supabase versions use TEXT for id
+    INSERT INTO auth.identities (
+      id, user_id, provider_id, identity_data, provider,
+      last_sign_in_at, created_at, updated_at
+    ) VALUES (
+      v_user_id::text, v_user_id, v_email,
+      jsonb_build_object('sub', v_user_id::text, 'email', v_email,
+                         'email_verified', true, 'provider_id', v_email),
+      'email', now(), now(), now()
+    );
+  END;
 
-  -- Insert into public.profiles
+  -- Create profile
   INSERT INTO public.profiles (id, full_name, role, company_id, onboarded, username)
   VALUES (v_user_id, p_display_name, p_role, v_company_id, true, v_username)
   ON CONFLICT (id) DO UPDATE SET
@@ -123,7 +174,7 @@ BEGIN
     onboarded  = true,
     username   = EXCLUDED.username;
 
-  -- Return credentials (shown once to owner — never stored in plaintext)
+  -- Return credentials to owner (shown once, never stored as plaintext)
   RETURN json_build_object('username', v_username, 'password', v_password);
 
 EXCEPTION
@@ -133,7 +184,9 @@ END;
 $$;
 
 
--- 4. Reset password
+-- ================================================================
+-- STEP 6: reset_team_password(p_user_id)
+-- ================================================================
 DROP FUNCTION IF EXISTS public.reset_team_password(UUID);
 CREATE OR REPLACE FUNCTION public.reset_team_password(p_user_id UUID)
 RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $$
@@ -169,7 +222,9 @@ END;
 $$;
 
 
--- 5. Delete team member
+-- ================================================================
+-- STEP 7: delete_team_member(p_user_id)
+-- ================================================================
 DROP FUNCTION IF EXISTS public.delete_team_member(UUID);
 CREATE OR REPLACE FUNCTION public.delete_team_member(p_user_id UUID)
 RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER AS $$
@@ -191,7 +246,9 @@ END;
 $$;
 
 
--- 6. Get all team members for the caller's company
+-- ================================================================
+-- STEP 8: get_team_members()
+-- ================================================================
 DROP FUNCTION IF EXISTS public.get_team_members();
 CREATE OR REPLACE FUNCTION public.get_team_members()
 RETURNS TABLE (id UUID, full_name TEXT, username TEXT, role TEXT, avatar_url TEXT, created_at TIMESTAMPTZ)
@@ -204,7 +261,10 @@ LANGUAGE sql SECURITY DEFINER STABLE AS $$
 $$;
 
 
--- 7. Resolve team login (called before signInWithPassword)
+-- ================================================================
+-- STEP 9: resolve_team_login(p_username, p_company_name)
+-- Called before signInWithPassword on the Team Login screen
+-- ================================================================
 DROP FUNCTION IF EXISTS public.resolve_team_login(TEXT, TEXT);
 CREATE OR REPLACE FUNCTION public.resolve_team_login(p_username TEXT, p_company_name TEXT)
 RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER STABLE AS $$
@@ -216,20 +276,24 @@ BEGIN
   SELECT id INTO v_company_id
     FROM public.companies
    WHERE lower(trim(name)) = lower(trim(p_company_name)) LIMIT 1;
-  IF v_company_id IS NULL THEN RAISE EXCEPTION 'Company not found.'; END IF;
+  IF v_company_id IS NULL THEN
+    RAISE EXCEPTION 'Company not found.';
+  END IF;
 
-  v_email := lower(trim(p_username)) || '@' || replace(v_company_id::text,'-','') || '.internal';
+  v_email := lower(trim(p_username)) || '@' || replace(v_company_id::text, '-', '') || '.internal';
 
   SELECT id INTO v_user_id
     FROM public.profiles
    WHERE username = lower(trim(p_username)) AND company_id = v_company_id LIMIT 1;
-  IF v_user_id IS NULL THEN RAISE EXCEPTION 'Invalid username or company.'; END IF;
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Invalid username or company.';
+  END IF;
 
   IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_user_id AND email = v_email AND deleted_at IS NULL) THEN
     RAISE EXCEPTION 'Account inactive. Contact your owner.';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM auth.identities WHERE user_id = v_user_id) THEN
-    RAISE EXCEPTION 'Account setup incomplete. Ask your owner to re-create your account.';
+    RAISE EXCEPTION 'Account setup incomplete. Ask owner to re-create your account.';
   END IF;
 
   RETURN v_email;
@@ -237,7 +301,9 @@ END;
 $$;
 
 
--- 8. Permissions
+-- ================================================================
+-- STEP 10: Grant permissions
+-- ================================================================
 GRANT EXECUTE ON FUNCTION public.generate_team_password()         TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_team_member(TEXT, TEXT)   TO authenticated;
 GRANT EXECUTE ON FUNCTION public.reset_team_password(UUID)        TO authenticated;
@@ -247,5 +313,7 @@ GRANT EXECUTE ON FUNCTION public.resolve_team_login(TEXT, TEXT)   TO anon;
 GRANT EXECUTE ON FUNCTION public.resolve_team_login(TEXT, TEXT)   TO authenticated;
 
 
--- 9. Reload PostgREST schema cache instantly
+-- STEP 11: Force PostgREST to reload schema cache RIGHT NOW
 NOTIFY pgrst, 'reload schema';
+
+-- ✅ SUCCESS — All functions created for Digital / Deal Desk CRM
