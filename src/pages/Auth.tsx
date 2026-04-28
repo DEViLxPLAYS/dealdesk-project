@@ -116,11 +116,20 @@ export default function Auth() {
 
       navigate('/dashboard', { replace: true });
     } catch (error: any) {
-      const msg = error.message || 'Invalid credentials';
-      if (msg.includes('Company not found') || msg.includes('Invalid username')) {
-        toast.error('Invalid username or company name');
-      } else if (msg.includes('Invalid login credentials')) {
-        toast.error('Incorrect password');
+      const msg: string = error.message || 'Invalid credentials';
+
+      if (msg.includes('Company not found')) {
+        toast.error('Company not found. Check the company name and try again.');
+      } else if (msg.includes('Invalid username or company')) {
+        toast.error('Invalid username or company name. Please check and try again.');
+      } else if (msg.includes('inactive')) {
+        toast.error('This account is inactive. Contact your company owner.');
+      } else if (msg.includes('Account setup is incomplete') || msg.includes('setup incomplete')) {
+        toast.error('Account setup incomplete. Ask your owner to re-create your account.');
+      } else if (msg.includes('Invalid login credentials') || msg.includes('invalid_credentials')) {
+        toast.error('Incorrect password. Please try again.');
+      } else if (msg.includes('Email not confirmed')) {
+        toast.error('Account not confirmed. Contact your company owner.');
       } else {
         toast.error(msg);
       }

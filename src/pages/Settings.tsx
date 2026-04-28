@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import {
   Building, CreditCard, Bell, Upload, Check, Loader2,
   Globe, Phone, Mail, MapPin, Shield, AlertCircle, ExternalLink,
-  Users, UserPlus, Trash2, Crown, UserCog, User,
+  Users, UserPlus, Trash2, Crown, UserCog, User, Copy, RefreshCw, KeyRound,
 } from 'lucide-react';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -50,39 +50,45 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
+// ── Credential display box with copy button ────────────────────────────────────
+function CredentialBox({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
+      <div className="flex items-center gap-2 bg-muted/60 border border-border rounded-lg px-3 py-2">
+        <code className="flex-1 text-sm font-mono text-foreground select-all">{value}</code>
+        <button onClick={copy} className="text-muted-foreground hover:text-primary transition-colors flex-shrink-0">
+          {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Add Member Modal ───────────────────────────────────────────────────────────
 function AddMemberModal({ onClose, onAdded, callerRole }: { onClose: () => void; onAdded: () => void; callerRole: string }) {
   const [displayName, setDisplayName] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'manager' | 'employee'>('employee');
   const [saving, setSaving] = useState(false);
-
-  const canCreateManager = callerRole === 'owner' || callerRole === 'super_admin' || callerRole === 'admin';
+  const [credentials, setCredentials] = useState<{ username: string; password: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!displayName.trim() || !username.trim() || !password) {
-      toast.error('All fields are required');
-      return;
-    }
-    if (password.length < 6) { toast.error('Password must be at least 6 characters'); return; }
-    if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
-      toast.error('Username can only contain letters, numbers, dots, hyphens, and underscores');
-      return;
-    }
+    if (!displayName.trim()) { toast.error('Enter a name'); return; }
     setSaving(true);
     try {
-      const { error } = await supabase.rpc('create_team_member', {
+      const { data, error } = await supabase.rpc('create_team_member', {
         p_display_name: displayName.trim(),
-        p_username:     username.trim().toLowerCase(),
-        p_password:     password,
-        p_role:         role,
+        p_role: 'employee',
       });
       if (error) throw error;
-      toast.success(`Team member "${displayName}" created!`);
+      setCredentials(data as { username: string; password: string });
       onAdded();
-      onClose();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create team member');
     } finally {
@@ -91,63 +97,82 @@ function AddMemberModal({ onClose, onAdded, callerRole }: { onClose: () => void;
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={credentials ? undefined : onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
         className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5 animate-fade-in"
         onClick={e => e.stopPropagation()}
       >
-        <div>
-          <h3 className="text-lg font-bold text-foreground">Add Team Member</h3>
-          <p className="text-sm text-muted-foreground mt-0.5">Create a new team member login for your company.</p>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="tm-name">Display Name</Label>
-            <Input id="tm-name" placeholder="Jane Smith" value={displayName} onChange={e => setDisplayName(e.target.value)} className="h-10" required />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="tm-username">Username</Label>
-            <Input id="tm-username" placeholder="jane.smith" value={username} onChange={e => setUsername(e.target.value)} className="h-10" required />
-            <p className="text-xs text-muted-foreground">Used to sign in. Letters, numbers, dots, hyphens only.</p>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="tm-password">Password</Label>
-            <Input id="tm-password" type="password" placeholder="Min 6 characters" value={password} onChange={e => setPassword(e.target.value)} className="h-10" required />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Role</Label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setRole('employee')}
-                className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm font-medium transition-all',
-                  role === 'employee' ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600' : 'border-border text-muted-foreground hover:border-primary/30'
-                )}
-              >
-                <User className="h-3.5 w-3.5" /> Employee
-              </button>
-              {canCreateManager && (
-                <button
-                  type="button"
-                  onClick={() => setRole('manager')}
-                  className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm font-medium transition-all',
-                    role === 'manager' ? 'bg-amber-500/10 border-amber-500/40 text-amber-600' : 'border-border text-muted-foreground hover:border-primary/30'
-                  )}
-                >
-                  <UserCog className="h-3.5 w-3.5" /> Manager
-                </button>
-              )}
+        {!credentials ? (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <UserPlus className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">Add Team Member</h3>
+                <p className="text-sm text-muted-foreground">Just enter a name — login details are auto-generated.</p>
+              </div>
             </div>
-          </div>
-          <Separator />
-          <div className="flex gap-3 justify-end">
-            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-            <Button type="submit" disabled={saving} style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none' }}>
-              {saving ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Creating…</> : <><UserPlus className="h-4 w-4 mr-1" />Add Member</>}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="tm-name" className="font-semibold">Full Name</Label>
+                <Input
+                  id="tm-name"
+                  placeholder="e.g. Fahad Khan"
+                  value={displayName}
+                  onChange={e => setDisplayName(e.target.value)}
+                  className="h-11 text-base"
+                  autoFocus
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  A unique username &amp; secure password will be generated automatically.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <Button type="button" variant="outline" className="flex-1" onClick={onClose} disabled={saving}>Cancel</Button>
+                <Button type="submit" className="flex-1" disabled={saving}
+                  style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none' }}>
+                  {saving
+                    ? <><Loader2 className="h-4 w-4 animate-spin mr-1.5" />Creating…</>
+                    : <><UserPlus className="h-4 w-4 mr-1.5" />Add Member</>}
+                </Button>
+              </div>
+            </form>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
+                <Check className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">Member Created!</h3>
+                <p className="text-sm text-muted-foreground">Copy the login details below.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 p-4 rounded-xl bg-muted/40 border border-border">
+              <CredentialBox label="Username" value={credentials.username} />
+              <CredentialBox label="Password" value={credentials.password} />
+            </div>
+
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-amber-700">
+                Save this password now — it won't be shown again. You can reset it anytime from the Team tab.
+              </p>
+            </div>
+
+            <Button className="w-full" onClick={onClose}
+              style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none' }}>
+              Done
             </Button>
-          </div>
-        </form>
+          </>
+        )}
       </div>
     </div>
   );
@@ -159,6 +184,8 @@ function TeamTab({ callerRole }: { callerRole: string }) {
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [resetCreds, setResetCreds] = useState<{ username: string; password: string } | null>(null);
 
   const isOwner = callerRole === 'owner' || callerRole === 'super_admin' || callerRole === 'admin';
 
@@ -183,12 +210,26 @@ function TeamTab({ callerRole }: { callerRole: string }) {
     try {
       const { error } = await supabase.rpc('delete_team_member', { p_user_id: memberId });
       if (error) throw error;
-      toast.success(`Member removed`);
+      toast.success('Member removed');
       setMembers(prev => prev.filter(m => m.id !== memberId));
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete member');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleResetPassword = async (memberId: string) => {
+    if (!confirm('Reset this member\'s password? A new one will be generated.')) return;
+    setResettingId(memberId);
+    try {
+      const { data, error } = await supabase.rpc('reset_team_password', { p_user_id: memberId });
+      if (error) throw error;
+      setResetCreds(data as { username: string; password: string });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reset password');
+    } finally {
+      setResettingId(null);
     }
   };
 
@@ -242,18 +283,57 @@ function TeamTab({ callerRole }: { callerRole: string }) {
                   </div>
                   <RoleBadge role={member.role} />
                   {isOwner && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:bg-destructive/10 flex-shrink-0"
-                      onClick={() => handleDelete(member.id, member.full_name)}
-                      disabled={deletingId === member.id}
-                    >
-                      {deletingId === member.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    </Button>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Reset password"
+                        className="h-8 w-8 text-amber-500 hover:bg-amber-500/10"
+                        onClick={() => handleResetPassword(member.id)}
+                        disabled={resettingId === member.id}
+                      >
+                        {resettingId === member.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDelete(member.id, member.full_name)}
+                        disabled={deletingId === member.id}
+                      >
+                        {deletingId === member.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      </Button>
+                    </div>
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Reset password credentials popup */}
+          {resetCreds && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setResetCreds(null)}>
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+              <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4 animate-fade-in" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
+                    <KeyRound className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold">Password Reset</h3>
+                    <p className="text-xs text-muted-foreground">New credentials — copy now!</p>
+                  </div>
+                </div>
+                <div className="space-y-3 p-4 rounded-xl bg-muted/40 border border-border">
+                  <CredentialBox label="Username" value={resetCreds.username} />
+                  <CredentialBox label="New Password" value={resetCreds.password} />
+                </div>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-amber-700">This password won't be shown again after you close this dialog.</p>
+                </div>
+                <Button className="w-full" onClick={() => setResetCreds(null)} style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none' }}>Done</Button>
+              </div>
             </div>
           )}
         </CardContent>
