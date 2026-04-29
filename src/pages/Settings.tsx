@@ -381,7 +381,7 @@ const PLANS = [
 
 export default function Settings() {
   const { company, updateCompany, uploadLogo } = useCompany();
-  const { user, isSuperAdmin, isOwnerOrManager, profile } = useAuth();
+  const { user, isSuperAdmin, isOwnerOrManager, isEmployee, profile } = useAuth();
 
   // Form state mirrors company data for live editing
   const [form, setForm] = useState({
@@ -503,6 +503,16 @@ export default function Settings() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {/* Read-only notice for employees */}
+                {isEmployee && (
+                  <div className="flex items-start gap-3 p-3 mb-5 rounded-lg bg-amber-500/10 border border-amber-500/25">
+                    <Shield className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                      You have <strong>view-only</strong> access to company details. Contact your owner or manager to make changes.
+                    </p>
+                  </div>
+                )}
+
                 <form onSubmit={handleSaveProfile} className="space-y-6">
                   {/* Logo upload */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -520,16 +530,18 @@ export default function Settings() {
                       )}
                     </div>
                     <div className="space-y-2">
-                      <div className="flex gap-2 flex-wrap">
-                        <Button type="button" variant="outline" size="sm" className="gap-2"
-                          onClick={() => fileInputRef.current?.click()} disabled={uploadingLogo}>
-                          <Upload className="h-3.5 w-3.5" />
-                          {uploadingLogo ? 'Uploading…' : 'Upload Logo'}
-                        </Button>
-                        <input ref={fileInputRef} type="file" accept="image/*"
-                          className="hidden" onChange={handleLogoUpload} />
-                      </div>
-                      <p className="text-xs text-muted-foreground">JPG, PNG, WebP. Max 2MB. Shows in sidebar & all documents.</p>
+                      {!isEmployee && (
+                        <div className="flex gap-2 flex-wrap">
+                          <Button type="button" variant="outline" size="sm" className="gap-2"
+                            onClick={() => fileInputRef.current?.click()} disabled={uploadingLogo}>
+                            <Upload className="h-3.5 w-3.5" />
+                            {uploadingLogo ? 'Uploading…' : 'Upload Logo'}
+                          </Button>
+                          <input ref={fileInputRef} type="file" accept="image/*"
+                            className="hidden" onChange={handleLogoUpload} />
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">JPG, PNG, WebP. Max 2MB. Shows in sidebar &amp; all documents.</p>
                     </div>
                   </div>
 
@@ -541,24 +553,28 @@ export default function Settings() {
                       placeholder="Digital Next" value={form.name}
                       onChange={v => setForm(p => ({ ...p, name: v }))}
                       icon={<Building className="h-4 w-4" />}
+                      readOnly={isEmployee}
                     />
                     <SettingField
                       id="email" label="Business Email" type="email"
                       placeholder="hello@company.com" value={form.email}
                       onChange={v => setForm(p => ({ ...p, email: v }))}
                       icon={<Mail className="h-4 w-4" />}
+                      readOnly={isEmployee}
                     />
                     <SettingField
                       id="phone" label="Phone Number" type="tel"
                       placeholder="+1 555-123-4567" value={form.phone}
                       onChange={v => setForm(p => ({ ...p, phone: v }))}
                       icon={<Phone className="h-4 w-4" />}
+                      readOnly={isEmployee}
                     />
                     <SettingField
                       id="website" label="Website" type="url"
                       placeholder="https://yourcompany.com" value={form.website}
                       onChange={v => setForm(p => ({ ...p, website: v }))}
                       icon={<Globe className="h-4 w-4" />}
+                      readOnly={isEmployee}
                     />
                     <div className="sm:col-span-2">
                       <SettingField
@@ -566,6 +582,7 @@ export default function Settings() {
                         placeholder="123 Main St, City, State 10001" value={form.address}
                         onChange={v => setForm(p => ({ ...p, address: v }))}
                         icon={<MapPin className="h-4 w-4" />}
+                        readOnly={isEmployee}
                       />
                     </div>
                   </div>
@@ -578,19 +595,21 @@ export default function Settings() {
                     </p>
                   </div>
 
-                  <div className="flex justify-end">
-                    <Button type="submit" disabled={savingProfile}
-                      className={cn('gap-2 min-w-[140px]', savedProfile && 'bg-success')}
-                      style={!savedProfile ? { background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none' } : {}}>
-                      {savingProfile ? (
-                        <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
-                      ) : savedProfile ? (
-                        <><Check className="h-4 w-4" /> Saved!</>
-                      ) : (
-                        'Save Changes'
-                      )}
-                    </Button>
-                  </div>
+                  {!isEmployee && (
+                    <div className="flex justify-end">
+                      <Button type="submit" disabled={savingProfile}
+                        className={cn('gap-2 min-w-[140px]', savedProfile && 'bg-success')}
+                        style={!savedProfile ? { background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none' } : {}}>
+                        {savingProfile ? (
+                          <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</>
+                        ) : savedProfile ? (
+                          <><Check className="h-4 w-4" /> Saved!</>
+                        ) : (
+                          'Save Changes'
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </form>
               </CardContent>
             </Card>
@@ -786,9 +805,9 @@ export default function Settings() {
   );
 }
 
-function SettingField({ id, label, type, placeholder, value, onChange, icon }: {
+function SettingField({ id, label, type, placeholder, value, onChange, icon, readOnly }: {
   id: string; label: string; type: string; placeholder: string;
-  value: string; onChange: (v: string) => void; icon: React.ReactNode;
+  value: string; onChange: (v: string) => void; icon: React.ReactNode; readOnly?: boolean;
 }) {
   return (
     <div className="space-y-1.5">
@@ -796,7 +815,8 @@ function SettingField({ id, label, type, placeholder, value, onChange, icon }: {
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{icon}</span>
         <Input id={id} type={type} placeholder={placeholder} value={value}
-          onChange={e => onChange(e.target.value)} className="pl-10 h-11" />
+          onChange={e => onChange(e.target.value)} className={cn('pl-10 h-11', readOnly && 'cursor-not-allowed opacity-70 bg-muted/50')}
+          readOnly={readOnly} tabIndex={readOnly ? -1 : undefined} />
       </div>
     </div>
   );
